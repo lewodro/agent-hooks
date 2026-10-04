@@ -24,7 +24,7 @@
 | Anchor | 0.31.1 |
 | Mainnet | not deployed yet — operator-driven via `agent-hooks deploy --cluster mainnet` |
 
-AGENT HOOKS is a Solana-first hook framework for lending: an Anchor 0.31 executor program plus a runtime, three adapters (Marginfi v2, Kamino Lend, Solend), a six-hook standard library, an SDK, a CLI, and a VS Code extension. Pool operators bind a list of hooks (a Composition) to a pool and the on-chain executor runs them at every lifecycle event.
+AGENT HOOKS is a Solana-first hook framework for lending: an Anchor 0.31 executor program plus a runtime, three adapters (Marginfi v2, Kamino Lend, Solend), a six-hook standard library, an SDK, a CLI, and a VS Code extension. Pool operators bind a list of hooks (a Composition) to a pool and the on-chain executor runs them at every lifecycle event. Its agent control plane lets AI systems create policy-checked, simulation-only proposals; it never grants them wallet or deployment authority.
 
 The metaphor is rigging: each rope is a hook, each knot is a Composition. Tie carefully, retie at any time.
 
@@ -91,6 +91,7 @@ packages/
   solend-adapter/     Solend SDK wrapper -> normalised LifecycleEvent
   sdk-ts/             TypeScript SDK — Composition builder, ExecutorClient, browser simulator
   cli/                @agent-hooks/cli — create, list, simulate, deploy plan, GitHub Action scaffold
+  agent-runtime/      Provider-neutral AI proposal contract, policy validation, and approval guardrails
   vscode-extension/   VS Code extension — knot diagram, inline simulation, deploy plan
 apps/
   web/                Next.js 14 + Three.js workshop landing, Hook Designer, Marketplace, Docs
@@ -150,6 +151,7 @@ agent-hooks simulate --pool SOL-USDC --steps 240
 agent-hooks create hook --name MyKnot --lifecycle BeforeBorrow
 agent-hooks action          # write .github/workflows/agent-hooks-hook-ci.yml
 agent-hooks deploy --cluster mainnet   # prints the deploy plan; does not broadcast
+agent-hooks agent plan --objective "Assess SOL-USDC LTV risk"  # proposal only; no signing
 ```
 
 ## On-chain executor

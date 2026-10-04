@@ -6,6 +6,7 @@ import { simulateCommand } from "./commands/simulate.js";
 import { deployCommand } from "./commands/deploy.js";
 import { listCommand } from "./commands/list.js";
 import { actionCommand } from "./commands/action.js";
+import { agentCommand } from "./commands/agent.js";
 import { receiptsCommand } from "./commands/receipts.js";
 
 const program = new Command();
@@ -21,6 +22,7 @@ program.addCommand(simulateCommand());
 program.addCommand(deployCommand());
 program.addCommand(listCommand());
 program.addCommand(actionCommand());
+program.addCommand(agentCommand());
 program.addCommand(receiptsCommand());
 
 program.parseAsync(process.argv).catch((err) => {

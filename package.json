@@ -3,17 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "description": "AGENT HOOKS public mirror — Solana lending hooks framework. Tie your loans.",
-  "workspaces": [
-    "packages/*"
-  ],
+  "workspaces": ["packages/*", "examples/*"],
   "scripts": {
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
     "typescript": "^5.7.2"
   },
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22"
+  }
 }
