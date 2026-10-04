@@ -1,0 +1,34 @@
+{
+  "name": "@agent-hooks/cli",
+  "version": "0.1.2",
+  "description": "Agent Hooks command-line tools \u2014 create, simulate, and deploy lending hooks on Solana.",
+  "type": "module",
+  "bin": {
+    "agent-hooks": "dist/bin.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && chmod +x dist/bin.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "start": "tsx src/bin.ts"
+  },
+  "dependencies": {
+    "@agent-hooks/sdk": "^0.1.0",
+    "@solana/web3.js": "^1.95.4",
+    "commander": "^13.0.0",
+    "kleur": "^4.1.5",
+    "prompts": "^2.4.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/prompts": "^2.4.9",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

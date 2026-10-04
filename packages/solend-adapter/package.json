@@ -1,0 +1,23 @@
+{
+  "name": "@agent-hooks/solend-adapter",
+  "version": "0.1.0",
+  "description": "Agent Hooks adapter for Solend reserves / obligations.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@solendprotocol/solend-sdk": "^0.13.0",
+    "@solana/web3.js": "^1.95.4",
+    "bn.js": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.6",
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2"
+  }
+}

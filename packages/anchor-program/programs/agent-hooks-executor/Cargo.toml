@@ -1,0 +1,22 @@
+[package]
+name = "agent-hooks-executor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Agent Hooks on-chain hook executor — Anchor 0.31 program that runs Compositions against Marginfi/Kamino/Solend lifecycle events."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "agent_hooks_executor"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang.workspace = true
+anchor-spl.workspace = true

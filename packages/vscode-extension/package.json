@@ -1,0 +1,57 @@
+{
+  "name": "agent-hooks-vscode",
+  "displayName": "Agent Hooks — Solana Lending Hooks",
+  "description": "Visualise hook compositions as knot diagrams, simulate lifecycle events, and deploy with the Agent Hooks CLI from inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "agent-hooks",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/agent-hooks/agent-hooks",
+  "engines": {
+    "vscode": "^1.95.0"
+  },
+  "categories": ["Other", "Debuggers", "Visualization"],
+  "keywords": ["solana", "anchor", "lending", "marginfi", "kamino", "solend", "hooks"],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:agent-hooks.openDesigner",
+    "onCommand:agent-hooks.simulate",
+    "onCommand:agent-hooks.deployPlan",
+    "workspaceContains:**/Anchor.toml"
+  ],
+  "contributes": {
+    "commands": [
+      { "command": "agent-hooks.openDesigner", "title": "Agent Hooks: Open Hook Designer" },
+      { "command": "agent-hooks.simulate", "title": "Agent Hooks: Simulate Current Composition" },
+      { "command": "agent-hooks.deployPlan", "title": "Agent Hooks: Show Deploy Plan" }
+    ],
+    "configuration": {
+      "title": "Agent Hooks",
+      "properties": {
+        "agent-hooks.defaultPool": {
+          "type": "string",
+          "default": "SOL-USDC",
+          "description": "Default pool label for simulations."
+        },
+        "agent-hooks.cluster": {
+          "type": "string",
+          "enum": ["localnet", "devnet", "mainnet"],
+          "default": "localnet"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package --out agent-hooks-vscode-0.1.0.vsix"
+  },
+  "dependencies": {
+    "@agent-hooks/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^3.2.0",
+    "typescript": "^5.7.2"
+  }
+}

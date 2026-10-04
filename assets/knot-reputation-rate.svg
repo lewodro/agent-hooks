@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="ReputationRate rolling hitch">
+  <title>ReputationRate — rolling hitch</title>
+  <rect width="120" height="120" fill="#3D2817"/>
+  <line x1="60" y1="14" x2="60" y2="106" stroke="#D4AF37" stroke-width="4"/>
+  <g fill="none" stroke="#F0EAD6" stroke-width="5" stroke-linecap="round">
+    <path d="M30 30 C 60 24, 80 36, 60 50"/>
+    <path d="M28 52 C 60 44, 80 58, 60 72" opacity="0.85"/>
+    <path d="M26 74 C 60 66, 80 80, 60 94" opacity="0.7"/>
+  </g>
+  <circle cx="60" cy="14" r="4" fill="#FFD93D"/>
+</svg>

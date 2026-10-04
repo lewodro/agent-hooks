@@ -1,0 +1,734 @@
+{
+  "address": "5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD",
+  "metadata": {
+    "name": "agent_hooks_executor",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Agent Hooks on-chain hook executor — Anchor 0.31 program that runs Compositions against Marginfi/Kamino/Solend lifecycle events."
+  },
+  "instructions": [
+    {
+      "name": "install_composition",
+      "docs": [
+        "Install a Composition (ordered list of hooks) on a pool."
+      ],
+      "discriminator": [
+        240,
+        90,
+        133,
+        163,
+        7,
+        94,
+        87,
+        241
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true
+        },
+        {
+          "name": "composition",
+          "writable": true
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "slot_index",
+          "type": "u8"
+        },
+        {
+          "name": "entries",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "HookEntry"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "publish_hook",
+      "docs": [
+        "Mark a hook as published in the marketplace. Listing data lives off-chain;",
+        "this is the on-chain anchor for discovery + verification."
+      ],
+      "discriminator": [
+        252,
+        249,
+        89,
+        60,
+        60,
+        126,
+        66,
+        180
+      ],
+      "accounts": [
+        {
+          "name": "listing",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  105,
+                  115,
+                  116,
+                  105,
+                  110,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "hook_program"
+              }
+            ]
+          }
+        },
+        {
+          "name": "hook_program"
+        },
+        {
+          "name": "author",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "flags",
+          "type": "u16"
+        },
+        {
+          "name": "manifest_uri",
+          "type": "string"
+        },
+        {
+          "name": "bump",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "register_pool",
+      "docs": [
+        "Register a lending pool with the executor. The pool authority controls",
+        "which compositions may run against it."
+      ],
+      "discriminator": [
+        85,
+        229,
+        114,
+        47,
+        75,
+        145,
+        166,
+        100
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "market"
+              }
+            ]
+          }
+        },
+        {
+          "name": "market"
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "adapter",
+          "type": "u8"
+        },
+        {
+          "name": "bump",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "run_composition",
+      "docs": [
+        "Execute the composition against a lifecycle event. The lending adapter",
+        "CPIs this instruction inside its own before/after handler and inspects",
+        "the result. The actual hook programs are invoked separately via",
+        "`invoke_hook` so each hook can return its own logs and side-effects."
+      ],
+      "discriminator": [
+        184,
+        47,
+        104,
+        18,
+        2,
+        158,
+        196,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "pool"
+        },
+        {
+          "name": "composition"
+        },
+        {
+          "name": "caller"
+        }
+      ],
+      "args": [
+        {
+          "name": "event_kind",
+          "type": "u8"
+        },
+        {
+          "name": "position_owner",
+          "type": "pubkey"
+        },
+        {
+          "name": "adapter",
+          "type": "u8"
+        },
+        {
+          "name": "payload",
+          "type": "bytes"
+        }
+      ],
+      "returns": {
+        "defined": {
+          "name": "RunReceipt"
+        }
+      }
+    },
+    {
+      "name": "update_composition",
+      "docs": [
+        "Replace the entries on an existing composition. Idempotent."
+      ],
+      "discriminator": [
+        114,
+        179,
+        93,
+        3,
+        212,
+        79,
+        146,
+        153
+      ],
+      "accounts": [
+        {
+          "name": "composition",
+          "writable": true
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "entries",
+          "type": {
+            "vec": {
+              "defined": {
+                "name": "HookEntry"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Composition",
+      "discriminator": [
+        143,
+        46,
+        198,
+        15,
+        88,
+        200,
+        250,
+        248
+      ]
+    },
+    {
+      "name": "HookListing",
+      "discriminator": [
+        45,
+        203,
+        219,
+        69,
+        233,
+        251,
+        221,
+        192
+      ]
+    },
+    {
+      "name": "Pool",
+      "discriminator": [
+        241,
+        154,
+        109,
+        4,
+        17,
+        177,
+        109,
+        188
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "CompositionExecuted",
+      "discriminator": [
+        66,
+        143,
+        42,
+        196,
+        133,
+        103,
+        253,
+        141
+      ]
+    },
+    {
+      "name": "CompositionInstalled",
+      "discriminator": [
+        253,
+        177,
+        46,
+        35,
+        78,
+        110,
+        199,
+        12
+      ]
+    },
+    {
+      "name": "CompositionUpdated",
+      "discriminator": [
+        239,
+        85,
+        232,
+        75,
+        173,
+        220,
+        141,
+        130
+      ]
+    },
+    {
+      "name": "HookPublished",
+      "discriminator": [
+        19,
+        204,
+        64,
+        9,
+        100,
+        10,
+        0,
+        214
+      ]
+    },
+    {
+      "name": "PoolRegistered",
+      "discriminator": [
+        77,
+        114,
+        165,
+        230,
+        33,
+        230,
+        135,
+        215
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "UnknownAdapter",
+      "msg": "Adapter byte must be 0 (Marginfi), 1 (Kamino) or 2 (Solend)."
+    },
+    {
+      "code": 6001,
+      "name": "TooManyHooks",
+      "msg": "Composition would exceed MAX_HOOKS_PER_COMPOSITION (8)."
+    },
+    {
+      "code": 6002,
+      "name": "EmptyComposition",
+      "msg": "Composition must contain at least one hook entry."
+    },
+    {
+      "code": 6003,
+      "name": "AuthorityMismatch",
+      "msg": "Authority signer does not match the pool's recorded authority."
+    },
+    {
+      "code": 6004,
+      "name": "CompositionPoolMismatch",
+      "msg": "Composition belongs to a different pool."
+    },
+    {
+      "code": 6005,
+      "name": "UnknownEventKind",
+      "msg": "Unknown event_kind byte (must be 0..7)."
+    },
+    {
+      "code": 6006,
+      "name": "AdapterMismatch",
+      "msg": "Caller's reported adapter does not match the registered pool adapter."
+    },
+    {
+      "code": 6007,
+      "name": "PayloadTooLarge",
+      "msg": "Caller payload exceeds 256 bytes."
+    },
+    {
+      "code": 6008,
+      "name": "EmptyFlags",
+      "msg": "Hook listing must declare at least one flag bit."
+    },
+    {
+      "code": 6009,
+      "name": "ManifestUriTooLong",
+      "msg": "Manifest URI exceeds 200 bytes."
+    }
+  ],
+  "types": [
+    {
+      "name": "Composition",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot_index",
+            "type": "u8"
+          },
+          {
+            "name": "installed_at",
+            "type": "i64"
+          },
+          {
+            "name": "entries",
+            "type": {
+              "vec": {
+                "defined": {
+                  "name": "HookEntry"
+                }
+              }
+            }
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompositionExecuted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "composition",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "event_kind",
+            "type": "u8"
+          },
+          {
+            "name": "position_owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "adapter",
+            "type": "u8"
+          },
+          {
+            "name": "hook_count_eligible",
+            "type": "u8"
+          },
+          {
+            "name": "hook_count_skipped",
+            "type": "u8"
+          },
+          {
+            "name": "timestamp",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompositionInstalled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "composition",
+            "type": "pubkey"
+          },
+          {
+            "name": "slot_index",
+            "type": "u8"
+          },
+          {
+            "name": "hook_count",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CompositionUpdated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "composition",
+            "type": "pubkey"
+          },
+          {
+            "name": "hook_count",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HookEntry",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "hook_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "priority",
+            "type": "u16"
+          },
+          {
+            "name": "flags",
+            "type": {
+              "defined": {
+                "name": "HookFlagsBitmap"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "HookFlagsBitmap",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bits",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HookListing",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "hook_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "author",
+            "type": "pubkey"
+          },
+          {
+            "name": "flags",
+            "type": {
+              "defined": {
+                "name": "HookFlagsBitmap"
+              }
+            }
+          },
+          {
+            "name": "manifest_uri",
+            "type": "string"
+          },
+          {
+            "name": "published_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "HookPublished",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "hook_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "author",
+            "type": "pubkey"
+          },
+          {
+            "name": "flags",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "adapter",
+            "docs": [
+              "0 = Marginfi, 1 = Kamino, 2 = Solend."
+            ],
+            "type": "u8"
+          },
+          {
+            "name": "composition_count",
+            "type": "u32"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PoolRegistered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "adapter",
+            "type": "u8"
+          },
+          {
+            "name": "market",
+            "type": "pubkey"
+          },
+          {
+            "name": "authority",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RunReceipt",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "composition",
+            "type": "pubkey"
+          },
+          {
+            "name": "event_kind",
+            "type": "u8"
+          },
+          {
+            "name": "eligible_hooks",
+            "type": "u8"
+          },
+          {
+            "name": "skipped_hooks",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

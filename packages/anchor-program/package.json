@@ -1,0 +1,20 @@
+{
+  "name": "@agent-hooks/anchor-program",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Anchor program scaffolding for the Agent Hooks on-chain hook executor.",
+  "scripts": {
+    "build": "anchor build",
+    "test": "anchor test",
+    "deploy:devnet": "anchor deploy --provider.cluster devnet",
+    "deploy:mainnet": "anchor deploy --provider.cluster mainnet"
+  },
+  "devDependencies": {
+    "@coral-xyz/anchor": "^0.31.0",
+    "@types/mocha": "^10.0.10",
+    "chai": "^4.5.0",
+    "mocha": "^10.8.2",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^5.7.2"
+  }
+}
