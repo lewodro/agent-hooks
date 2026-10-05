@@ -4,7 +4,7 @@ Runtime-agnostic types and execution logic for the Agent Hooks hook system. This
 
 - The eight lifecycle event kinds (`LifecycleEventKind`).
 - The position / market / oracle snapshot shapes.
-- `Composition` + `CompositionBuilder` — priority-ordered list of hooks.
+- `Composition` + `CompositionBuilder` — at most eight hooks, ordered by unique priorities to match the SDK and Anchor registry.
 - The `Hook` trait and `HookDecision` / `SideEffect` enums.
 - An in-process `Simulator` that mirrors the on-chain executor.
 

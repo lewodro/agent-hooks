@@ -3,7 +3,7 @@
 //! Compositions are the "knot tying" primitive — multiple hooks bound together
 //! so that a single lifecycle event flows through all of them in deterministic order.
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +20,9 @@ pub enum CompositionError {
 
     #[error("composition exceeds runtime budget of {0} hooks")]
     BudgetExceeded(usize),
+
+    #[error("hook priority {0} is used more than once")]
+    DuplicatePriority(u16),
 
     #[error("invalid lifecycle event: {0}")]
     InvalidEvent(#[from] EventValidationError),
@@ -52,6 +55,12 @@ impl CompositionBuilder {
         }
         if self.hooks.len() > MAX_HOOKS_PER_COMPOSITION {
             return Err(CompositionError::BudgetExceeded(MAX_HOOKS_PER_COMPOSITION));
+        }
+        let mut priorities = HashSet::with_capacity(self.hooks.len());
+        for (priority, _) in &self.hooks {
+            if !priorities.insert(*priority) {
+                return Err(CompositionError::DuplicatePriority(*priority));
+            }
         }
         self.hooks.sort_by_key(|(p, _)| *p);
         Ok(Composition {
@@ -397,6 +406,24 @@ mod tests {
             .unwrap();
         assert_eq!(trace.entries[0].hook_name, "early");
         assert_eq!(trace.entries[1].hook_name, "late");
+    }
+
+    #[test]
+    fn builder_rejects_priorities_that_cannot_be_installed_on_chain() {
+        let result = CompositionBuilder::new()
+            .add(
+                7,
+                Arc::new(AlwaysAccept(meta("first", HookFlag::BeforeBorrow))),
+            )
+            .add(
+                7,
+                Arc::new(AlwaysAccept(meta("second", HookFlag::BeforeBorrow))),
+            )
+            .build();
+        assert!(matches!(
+            result,
+            Err(CompositionError::DuplicatePriority(7))
+        ));
     }
 
     #[test]
