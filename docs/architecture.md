@@ -53,7 +53,9 @@ Each adapter is a small TypeScript package that wraps the protocol's existing SD
 
 ## Executor at the core
 
-`packages/anchor-program/programs/agent-hooks-executor` is the Anchor 0.31 program. Compositions live in PDAs keyed by `(pool, slot_index)`, so a pool can have up to eight slot indices and each slot can carry up to eight hooks. Pool authorities install and update Compositions. The executor emits `CompositionExecuted` events for external indexers to consume.
+`packages/anchor-program/programs/agent-hooks-executor` is the Anchor 0.31 program. Compositions live in PDAs keyed by `(pool, slot_index)`; a pool can have up to eight slots, with up to eight hooks in each slot. The pool authority installs and updates compositions.
+
+At present, `run_composition` validates the event kind, pool binding, adapter, and payload size. It counts entries whose declared flags match the event, then emits `HookRan` and `CompositionExecuted` receipts. The per-hook decision in `HookRan` is currently a placeholder. This instruction does not invoke hook programs or apply side effects. Actual hook evaluation currently happens in the Rust runtime and TypeScript simulator; CPI-based on-chain hook evaluation remains future work.
 
 ## Why hook flags live in PDAs, not in the program address
 
@@ -61,7 +63,7 @@ Uniswap v4 encodes hook flags in the contract address. That works on EVM because
 
 ## Agent control plane
 
-`packages/agent-runtime` gives AI agents a deliberately narrow integration surface: they can generate versioned proposals, attach assumptions and evidence, and request deterministic simulations. Policies reject unapproved or unsimulated mutations. The runtime has no wallet, private-key, transaction-submission, or deployment capability; an operator must separately review and execute any resulting composition change.
+`packages/agent-runtime` gives AI agents a deliberately narrow integration surface: they can generate versioned proposals, attach assumptions and evidence, and request deterministic simulations. Policies reject unapproved or unsimulated mutations. This package has no wallet, private-key, transaction-submission, or deployment capability; an operator must separately review and execute any resulting composition change.
 
 ## Continuous experience loop
 
