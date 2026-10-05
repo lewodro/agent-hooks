@@ -37,7 +37,7 @@ export class KaminoAdapter implements LendingAdapter {
   async loadMarket(): Promise<KaminoMarket> {
     if (this.market) return this.market;
     const connection = new Connection(this.options.rpcEndpoint, "confirmed");
-    const market = await KaminoMarket.load(connection, this.options.marketAddress);
+    const market = await KaminoMarket.load(connection, this.options.marketAddress, 400);
     if (!market) {
       throw new Error(`Kamino market ${this.options.marketAddress.toBase58()} not found`);
     }
@@ -47,12 +47,13 @@ export class KaminoAdapter implements LendingAdapter {
 
   async snapshotPool(market: PublicKey): Promise<PoolSnapshot> {
     const m = await this.loadMarket();
+    const currentSlot = await m.getConnection().getSlot();
     const reserves: ReserveSnapshot[] = [];
     let totalAssets = 0;
     let totalLiabilities = 0;
     for (const reserve of m.reserves.values()) {
-      const supplyApy = reserve.totalSupplyAPY() * 10_000;
-      const borrowApy = reserve.totalBorrowAPY() * 10_000;
+      const supplyApy = reserve.totalSupplyAPY(currentSlot) * 10_000;
+      const borrowApy = reserve.totalBorrowAPY(currentSlot) * 10_000;
       const assets = Number(reserve.getTotalSupply().toString());
       const liabilities = Number(reserve.getBorrowedAmount().toString());
       totalAssets += assets;
