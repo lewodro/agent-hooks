@@ -68,11 +68,9 @@ dependencies = [
 name = "agent-hooks-runtime"
 version = "0.1.0"
 dependencies = [
- "anchor-lang",
  "borsh 0.10.4",
  "bytemuck",
  "serde",
- "serde_json",
  "thiserror 1.0.69",
 ]
 

@@ -3,16 +3,14 @@ name = "agent-hooks-runtime"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Agent Hooks hook runtime — loan lifecycle event interceptor and execution engine for Solana lending protocols."
+description = "Deterministic host-side lifecycle validation, hook composition, and simulation for Agent Hooks."
 
 [lib]
 name = "agent_hooks_runtime"
 path = "src/lib.rs"
 
 [dependencies]
-anchor-lang.workspace = true
 borsh.workspace = true
 thiserror.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 bytemuck.workspace = true
