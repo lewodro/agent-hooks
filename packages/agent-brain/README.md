@@ -12,6 +12,8 @@ The storage interface is deliberately replaceable. Implementations should append
 
 `PostgresExperienceStore` is a driver-neutral durable adapter. Pass it an application-owned PostgreSQL pool/client that implements `PostgreSqlExecutor`, then call `initialize()` from a controlled migration step. It creates an append-only JSONB table, indexes event, composition, outcome, hook, and tag fields, and supports bounded idempotent inserts. Reusing an experience ID with different content is rejected. `recall()` can filter by adapter, event kind, composition, outcome, hook ID, tag, time window, and caller-labeled verified-chain status. The adapter does not open connections or load credentials. It does not cryptographically verify RPC evidence.
 
+For a worker that must survive restarts, `ExperienceFeedStore.readAfter(sequence, limit)` returns an ascending page in database ingestion order, including records newer than the worker's durable cursor. PostgreSQL assigns that order with one serialized counter update in the same insert statement; legacy rows receive a stable backfill order during initialization. Persist the last fully processed sequence alongside the consumer's own effects and make processing idempotent: a crash before saving the cursor can replay a page. This gives durable catch-up, not exactly-once side effects. The shared counter serializes writes to preserve cursor order, so it is a deliberate throughput tradeoff for a modest single-store event stream.
+
 ```ts
 import { AgentBrain, PostgresExperienceStore, type PostgreSqlExecutor } from "@agent-hooks/agent-brain";
 

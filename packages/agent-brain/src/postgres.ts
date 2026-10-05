@@ -2,10 +2,13 @@ import { createHash } from "node:crypto";
 
 import {
   ExperienceIdConflictError,
+  freezeExperience,
+  validateFeedCursor,
   validateExperience,
   type Experience,
+  type ExperienceFeedStore,
   type ExperienceQuery,
-  type ExperienceStore,
+  type SequencedExperience,
 } from "./memory.js";
 
 /** Minimal SQL driver contract; compatible with common PostgreSQL pool/client query methods. */
@@ -17,12 +20,13 @@ export interface PostgreSqlExecutor {
 }
 
 const TABLE = "agent_hook_experiences";
+const SEQUENCE_TABLE = "agent_hook_experience_sequence";
 
 /**
  * PostgreSQL-backed append-only experience storage. Supply a configured pool or
  * client from the host application; this package never reads connection secrets.
  */
-export class PostgresExperienceStore implements ExperienceStore {
+export class PostgresExperienceStore implements ExperienceFeedStore {
   constructor(private readonly db: PostgreSqlExecutor) {}
 
   /** Apply the small additive schema and indexes. Call from a controlled migration step. */
@@ -30,6 +34,7 @@ export class PostgresExperienceStore implements ExperienceStore {
     await this.db.query(`
       CREATE TABLE IF NOT EXISTS ${TABLE} (
         experience_id TEXT PRIMARY KEY,
+        ingest_sequence BIGINT NOT NULL,
         record_hash CHAR(64) NOT NULL,
         schema_version SMALLINT NOT NULL CHECK (schema_version = 1),
         observed_at TIMESTAMPTZ NOT NULL,
@@ -41,6 +46,25 @@ export class PostgresExperienceStore implements ExperienceStore {
         payload JSONB NOT NULL
       )
     `);
+    await this.db.query(`CREATE TABLE IF NOT EXISTS ${SEQUENCE_TABLE} (
+      singleton SMALLINT PRIMARY KEY CHECK (singleton = 1),
+      last_sequence BIGINT NOT NULL CHECK (last_sequence >= 0)
+    )`);
+    await this.db.query(`INSERT INTO ${SEQUENCE_TABLE} (singleton, last_sequence)
+      VALUES (1, 0) ON CONFLICT (singleton) DO NOTHING`);
+    await this.db.query(`ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS ingest_sequence BIGINT`);
+    await this.db.query(`WITH numbered AS (
+      SELECT missing.experience_id,
+        (SELECT COALESCE(MAX(ingest_sequence), 0) FROM ${TABLE}) +
+          ROW_NUMBER() OVER (ORDER BY missing.observed_at, missing.experience_id) AS assigned_sequence
+      FROM ${TABLE} AS missing WHERE missing.ingest_sequence IS NULL
+    ) UPDATE ${TABLE} AS experiences SET ingest_sequence = numbered.assigned_sequence
+      FROM numbered WHERE experiences.experience_id = numbered.experience_id`);
+    await this.db.query(`ALTER TABLE ${TABLE} ALTER COLUMN ingest_sequence SET NOT NULL`);
+    await this.db.query(`CREATE UNIQUE INDEX IF NOT EXISTS ${TABLE}_sequence_idx ON ${TABLE} (ingest_sequence)`);
+    await this.db.query(`UPDATE ${SEQUENCE_TABLE} SET last_sequence = GREATEST(
+      last_sequence, COALESCE((SELECT MAX(ingest_sequence) FROM ${TABLE}), 0)
+    ) WHERE singleton = 1`);
     await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_observed_idx ON ${TABLE} (observed_at DESC, experience_id)`);
     await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_event_idx ON ${TABLE} (adapter, event_kind, observed_at DESC)`);
     await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_composition_idx ON ${TABLE} (composition_id, observed_at DESC)`);
@@ -55,10 +79,15 @@ export class PostgresExperienceStore implements ExperienceStore {
     const payload = canonicalJson(experience);
     const hash = createHash("sha256").update(payload).digest("hex");
     const inserted = await this.db.query(
-      `INSERT INTO ${TABLE} (
-        experience_id, record_hash, schema_version, observed_at, adapter,
+      `WITH next_sequence AS (
+        UPDATE ${SEQUENCE_TABLE} SET last_sequence = last_sequence + 1
+        WHERE singleton = 1 RETURNING last_sequence
+      )
+      INSERT INTO ${TABLE} (
+        experience_id, ingest_sequence, record_hash, schema_version, observed_at, adapter,
         event_kind, composition_id, evidence_channel, evidence_status, payload
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb)
+      ) SELECT $1, next_sequence.last_sequence, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb
+      FROM next_sequence
       ON CONFLICT (experience_id) DO NOTHING
       RETURNING experience_id`,
       [
@@ -85,6 +114,20 @@ export class PostgresExperienceStore implements ExperienceStore {
       throw new Error(`Experience ${experience.id} conflicted on insert but could not be read back`);
     }
     if (existingHash.trim() !== hash) throw new ExperienceIdConflictError(experience.id);
+  }
+
+  /** Read a bounded, commit-ordered page for durable cross-process consumers. */
+  async readAfter(sequence: bigint, limit = 100): Promise<SequencedExperience[]> {
+    validateFeedCursor(sequence, limit);
+    const result = await this.db.query(
+      `SELECT ingest_sequence, payload FROM ${TABLE}
+       WHERE ingest_sequence > $1 ORDER BY ingest_sequence ASC LIMIT $2`,
+      [sequence.toString(), limit],
+    );
+    return result.rows.map((row) => ({
+      sequence: parseSequence(row.ingest_sequence),
+      experience: decodeExperience(row.payload),
+    }));
   }
 
   async query(query: ExperienceQuery): Promise<Experience[]> {
@@ -226,8 +269,7 @@ function decodeExperience(value: unknown): Experience {
     }
     throw error;
   }
-  validateExperience(restored);
-  return restored;
+  return freezeExperience(restored);
 }
 
 function parseUnsignedBigInt(value: unknown, field: string): bigint {
@@ -235,4 +277,11 @@ function parseUnsignedBigInt(value: unknown, field: string): bigint {
     throw new TypeError(`${field} must be a non-negative decimal string`);
   }
   return BigInt(value);
+}
+
+function parseSequence(value: unknown): bigint {
+  if (typeof value === "bigint" && value >= 0n) return value;
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return BigInt(value);
+  if (typeof value === "string" && /^(0|[1-9][0-9]*)$/.test(value)) return BigInt(value);
+  throw new TypeError("PostgreSQL experience sequence is not a non-negative integer");
 }

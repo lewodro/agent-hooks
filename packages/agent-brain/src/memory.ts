@@ -79,6 +79,17 @@ export interface ExperienceStore {
   query(query: ExperienceQuery): Promise<Experience[]>;
 }
 
+export interface SequencedExperience {
+  /** Monotonic storage order, independent of caller-provided event timestamps. */
+  readonly sequence: bigint;
+  readonly experience: Experience;
+}
+
+/** Optional durable catch-up interface for agents consuming records across restarts. */
+export interface ExperienceFeedStore extends ExperienceStore {
+  readAfter(sequence: bigint, limit?: number): Promise<SequencedExperience[]>;
+}
+
 const EVENT_KINDS = new Set<LifecycleEvent["kind"]>([
   "beforeDeposit", "afterDeposit", "beforeBorrow", "afterBorrow",
   "beforeRepay", "afterRepay", "beforeLiquidate", "afterLiquidate",
@@ -178,6 +189,12 @@ export function validateExperience(value: unknown): asserts value is Experience 
   for (const tag of value.tags) requireString(tag, "experience tag", MAX_TAG_LENGTH, true);
 }
 
+/** Return a validated experience as a deeply immutable object. */
+export function freezeExperience(experience: Experience): Experience {
+  validateExperience(experience);
+  return deepFreeze(experience);
+}
+
 export class ExperienceIdConflictError extends Error {
   constructor(public readonly experienceId: string) {
     super(`experience ID ${experienceId} already exists with different content`);
@@ -186,8 +203,10 @@ export class ExperienceIdConflictError extends Error {
 }
 
 /** Bounded in-process store for local agents, tests, and development. Not durable. */
-export class MemoryExperienceStore implements ExperienceStore {
+export class MemoryExperienceStore implements ExperienceFeedStore {
   private readonly records = new Map<string, Experience>();
+  private readonly sequences = new Map<string, bigint>();
+  private nextSequence = 1n;
 
   constructor(private readonly maxRecords = 10_000) {
     if (!Number.isSafeInteger(maxRecords) || maxRecords < 1 || maxRecords > 1_000_000) {
@@ -204,10 +223,23 @@ export class MemoryExperienceStore implements ExperienceStore {
     }
 
     this.records.set(experience.id, deepFreeze(structuredClone(experience)));
+    this.sequences.set(experience.id, this.nextSequence++);
     if (this.records.size > this.maxRecords) {
       const oldest = this.records.keys().next();
-      if (!oldest.done) this.records.delete(oldest.value);
+      if (!oldest.done) {
+        this.records.delete(oldest.value);
+        this.sequences.delete(oldest.value);
+      }
     }
+  }
+
+  async readAfter(sequence: bigint, limit = 100): Promise<SequencedExperience[]> {
+    validateFeedCursor(sequence, limit);
+    return [...this.records.entries()]
+      .map(([id, experience]) => ({ sequence: this.sequences.get(id)!, experience }))
+      .filter((record) => record.sequence > sequence)
+      .sort((left, right) => left.sequence < right.sequence ? -1 : left.sequence > right.sequence ? 1 : 0)
+      .slice(0, limit);
   }
 
   async query(query: ExperienceQuery): Promise<Experience[]> {
@@ -339,6 +371,16 @@ export class AgentBrain {
       : records;
   }
 
+  /** Read durable records after a persisted sequence; works with feed-capable stores. */
+  async readAfter(sequence: bigint, limit = 100): Promise<SequencedExperience[]> {
+    validateFeedCursor(sequence, limit);
+    const store = this.store as ExperienceStore & Partial<ExperienceFeedStore>;
+    if (typeof store.readAfter !== "function") {
+      throw new TypeError("the configured ExperienceStore does not support sequenced replay");
+    }
+    return store.readAfter(sequence, limit);
+  }
+
   private async notifySubscribers(experience: Experience): Promise<void> {
     const notifications = [...this.subscribers].map(async ([listener, options]) => {
       if (options.verifiedOnly && !isMarkedVerifiedChainOutcome(experience.evidence)) return;
@@ -361,6 +403,15 @@ function validateQueryWindow(query: ExperienceQuery): [number | undefined, numbe
     throw new RangeError("query since must be earlier than or equal to until");
   }
   return [since, until];
+}
+
+export function validateFeedCursor(sequence: bigint, limit: number): void {
+  if (typeof sequence !== "bigint" || sequence < 0n) {
+    throw new RangeError("experience feed sequence must be a non-negative bigint");
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+    throw new RangeError("experience feed limit must be an integer between 1 and 500");
+  }
 }
 
 /** True only for evidence labeled as a confirmed/finalized chain result with identifiers. */

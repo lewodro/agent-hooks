@@ -64,7 +64,7 @@ The returned trace is evidence of local evaluation, not evidence that a chain tr
 
 ## Experience feedback loop
 
-`agent-brain` accepts a normalized event and caller-supplied hook feedback. A consumer should keep simulation, operator judgment, submitted transactions, and confirmed/finalized outcomes distinguishable; only appropriately verified outcomes should inform a policy presented as on-chain performance. `AgentBrain.recall()` retrieves past records by protocol event, composition, outcome, hook, tag, time window, or caller-labeled chain evidence for an off-chain planner. It does not train a model, establish causality, or prove that a prior decision caused an outcome.
+`agent-brain` accepts a normalized event and caller-supplied hook feedback. A consumer should keep simulation, operator judgment, submitted transactions, and confirmed/finalized outcomes distinguishable; only appropriately verified outcomes should inform a policy presented as on-chain performance. `AgentBrain.recall()` retrieves past records by protocol event, composition, outcome, hook, tag, time window, or caller-labeled chain evidence for an off-chain planner. `ExperienceFeedStore.readAfter()` provides bounded, ordered replay to workers that resume from a persisted ingestion cursor; consumers must make side effects idempotent because a crash can replay a page. The PostgreSQL implementation serializes sequence allocation with insertion to preserve cross-process cursor order. It does not train a model, establish causality, or prove that a prior decision caused an outcome.
 
 ```text
 observe → validate → evaluate hooks → preserve trace → protocol integration executes

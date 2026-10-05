@@ -252,6 +252,21 @@ test("memory store validates records even when bypassing AgentBrain", async () =
   assert.deepEqual(await store.query({}), [], "invalid records are never retained");
 });
 
+test("memory feed supports ordered resume cursors and bounded pages", async () => {
+  const store = new MemoryExperienceStore();
+  const brain = new AgentBrain(store);
+  await brain.observe({ id: "feed-first", event: event(), feedback, tags: [], observedAt: "2026-10-05T00:00:00.000Z" });
+  await brain.observe({ id: "feed-second", event: event(), feedback, tags: [], observedAt: "2026-01-01T00:00:00.000Z" });
+  await brain.observe({ id: "feed-third", event: event(), feedback, tags: [], observedAt: "2026-10-06T00:00:00.000Z" });
+
+  const pageOne = await brain.readAfter(0n, 2);
+  const pageTwo = await brain.readAfter(pageOne.at(-1)!.sequence, 2);
+  assert.deepEqual(pageOne.map(({ experience }) => experience.id), ["feed-first", "feed-second"]);
+  assert.deepEqual(pageOne.map(({ sequence }) => sequence), [1n, 2n]);
+  assert.deepEqual(pageTwo.map(({ experience }) => experience.id), ["feed-third"]);
+  await assert.rejects(brain.readAfter(0n, 501), /between 1 and 500/);
+});
+
 test("recall filters by feedback, hook, tag, and observed time window", async () => {
   const brain = new AgentBrain(new MemoryExperienceStore());
   const older = await brain.observe({
