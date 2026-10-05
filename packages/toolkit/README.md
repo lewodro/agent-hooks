@@ -70,7 +70,37 @@ dailyX.approve(post.id);
 
 ## Wallets and treasury
 
-`TreasuryReviewQueue` validates allowlisted destinations and assets, per-transfer and daily proposal limits, and records a named human decision. It is a proposal/review ledger only: it has no signing method and cannot send funds. Use a multisig or hardware/MPC signer behind a separately secured service, with independent human approval, spending limits, audit records, and a delay for material changes. Do not give an LLM a seed phrase or unrestricted wallet key. The X posting credential must remain separate from treasury authority.
+`TreasuryReviewQueue` creates chain-qualified proposals for Solana, Bitcoin, and Ethereum. Every allowlisted asset key is `chain:network:assetId` and every destination key is `chain:network:address`; use `treasuryAssetKey()` and `treasuryDestinationKey()` to avoid mixing networks or address formats. Proposal amounts and caps are integer smallest units (lamports, satoshis, wei, or token base units)—never JavaScript floats. Daily caps aggregate per exact chain/network/asset, since base units across different assets cannot be compared.
+
+```ts
+import {
+  TreasuryReviewQueue,
+  treasuryAssetKey,
+  treasuryDestinationKey,
+} from "@agent-hooks/toolkit/treasury";
+
+const asset = { chain: "solana", network: "devnet", assetId: "SOL" } as const;
+const destination = {
+  chain: "solana",
+  network: "devnet",
+  address: "<reviewed-destination>",
+} as const;
+const treasury = new TreasuryReviewQueue({
+  allowedAssets: [treasuryAssetKey(asset)],
+  allowedDestinations: [treasuryDestinationKey(destination)],
+  maxSingleTransfer: 50_000_000n, // 0.05 SOL in lamports
+  maxDailyTransfer: 100_000_000n,
+  requireHumanApproval: true,
+});
+const proposal = treasury.propose({
+  ...asset,
+  ...destination,
+  amount: 10_000_000n,
+  rationale: "Example only: reviewed devnet test",
+});
+```
+
+The queue is a proposal/review ledger only: it has no signing method, wallet connection, RPC client, or transaction broadcast. Its named reviewer field is an audit label—not authentication—and the in-memory limits are not durable enforcement. Before any live transfer, a host must independently authenticate reviewers, re-check limits against durable state, validate the chain-specific transaction, and hand it to an isolated multisig/hardware/MPC signing service. Do not give an LLM a seed phrase or unrestricted wallet key. Keep X posting credentials separate from treasury authority.
 
 The proposal queue is in memory; it is not a durable treasury ledger or an enforcement layer for actual wallet transfers. The host application must authenticate reviewers—the `reviewer` string is an audit label, not authentication. Production integrations must re-check limits against durable on-chain/accounting state immediately before their own signing flow.
 
