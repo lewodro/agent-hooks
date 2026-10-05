@@ -1,160 +1,108 @@
-# AGENT HOOKS
+# Agent Hooks
 
-> Policy-bound lifecycle hooks for Solana lending protocols and AI-assisted operations.
+Agent Hooks is an open source, continuous execution and experience framework for autonomous agents in Solana, crypto, and other digital worlds. Hooks are small, composable programs that respond to lifecycle events. Brains learn from the outcomes those hooks produce, so agents can use accumulated experience when planning future launches and actions.
 
-[![Build](https://img.shields.io/badge/build-local--verification--required-5BC0EB?style=flat-square)](#development-status)
-[![License](https://img.shields.io/badge/license-Apache--2.0-D4AF37?style=flat-square)](LICENSE)
-[![Anchor](https://img.shields.io/badge/Anchor-0.31-9D6BFF?style=flat-square)](https://www.anchor-lang.com)
-[![Rust](https://img.shields.io/badge/Rust-1.79-E63946?style=flat-square)](https://www.rust-lang.org)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-5BC0EB?style=flat-square)](https://www.typescriptlang.org)
-[![Solana](https://img.shields.io/badge/Solana-program--ID--required-FFD976?style=flat-square)](https://solana.com)
+The framework keeps execution, memory, and planning as separate interfaces. Protocol adapters normalize events; the SDK and Rust runtime compose, simulate, and evaluate hooks; the Anchor program provides the on-chain composition registry and executor; `agent-brain` stores event and outcome experience; and agent integrations create proposals through policy checks before an operator approves changes.
 
-## Development status
-
-| Resource | Value |
-|---------|-------|
-| Executor program | Not deployed — generate and configure a program ID before deployment. |
-| IDL | [`idl/agent_hooks_executor.json`](idl/agent_hooks_executor.json) (placeholder address) |
-| Anchor | 0.31.1 |
-| Mainnet | Not deployed — operator-driven via `agent-hooks deploy --cluster mainnet` |
-
-AGENT HOOKS is a Solana-first hook framework for lending: an Anchor 0.31 executor program plus a runtime, three adapters (Marginfi v2, Kamino Lend, Solend), a six-hook standard library, an SDK, a CLI, and a VS Code extension. Pool operators bind a list of hooks (a Composition) to a pool and the on-chain executor runs them at every lifecycle event. Its agent control plane lets AI systems create policy-checked, simulation-only proposals; it never grants them wallet or deployment authority.
-
-The metaphor is rigging: each rope is a hook, each knot is a Composition. Tie carefully, retie at any time.
-
-## Why AGENT HOOKS exists
-
-Marginfi, Kamino, and Solend are excellent lending protocols. None of them let an operator bring custom rules to a pool without forking the entire program. AGENT HOOKS sits between the lending protocol and the user so the same audited contract can be specialised — dynamically tightening LTV under volatility, restricting borrowers to a KYC allowlist, defending liquidations against MEV searchers, hedging into Drift on collateral drawdowns, pricing rate against on-chain repayment reputation — without anyone having to fork the underlying lender.
-
-The lifecycle model is inspired by Uniswap v4 hooks (Adams et al., 2024) and Aave v3's isolation / eMode features. The CPI plumbing draws on Token-2022 Transfer Hooks. Agent Hooks adapts those patterns to Solana's account model and to lending semantics.
-
-## Architecture
+The feedback loop is:
 
 ```mermaid
-%%{init: { "theme": "base", "themeVariables": {
-  "primaryColor": "#3D2817",
-  "primaryTextColor": "#F0EAD6",
-  "primaryBorderColor": "#D4AF37",
-  "lineColor": "#D4AF37",
-  "fontFamily": "Space Mono, monospace",
-  "tertiaryColor": "#5C3A1E"
-}} }%%
 flowchart LR
-    user([Borrower])
-    pool([Marginfi / Kamino / Solend])
-    adapter[[Agent Hooks adapter]]
-    runtime[[Agent Hooks runtime]]
-    exec{{Anchor executor<br/>on-chain}}
-    composition[(Composition PDA)]
-    hooks([Six standard hooks])
-    drift([Drift v2])
-
-    user -- deposit / borrow / repay --> pool
-    pool -- lifecycle event --> adapter
-    adapter -- normalise --> runtime
-    runtime -- run_composition CPI --> exec
-    exec -- read PDA --> composition
-    composition -- entries --> hooks
-    hooks -- accept / reject / side effect --> exec
-    exec -- decision --> adapter
-    adapter -- emit instruction --> drift
+    A[Protocol adapter] -->|LifecycleEvent| B[SDK + hook-runtime]
+    B -->|decision + execution trace| C[Executor]
+    C -->|receipt + outcome feedback| D[agent-brain]
+    D -->|relevant experience| E[Agent planner]
+    E -->|proposal| F[Policy + simulation]
+    F -->|operator-approved composition| B
 ```
 
-## The six standard knots
+`agent-brain` supplies a storage boundary and experience retrieval API. It does not claim to train a model itself: deployments choose their event store, retrieval strategy, and model provider. This lets the open source community connect different agent stacks and share reusable hook programs and learning systems.
 
-| Hook | Knot | Lifecycle | One line |
-|------|------|----------|---------|
-| `DynamicLTV` | slip | beforeBorrow, afterDeposit | Tightens max LTV as realised volatility climbs. |
-| `TimeTriggerLiq` | timer hitch | beforeLiquidate | Bounds liquidations to operator windows; delays under stale oracle. |
-| `WhitelistBorrow` | lock | beforeBorrow | Restricts new debt to a registered allowlist. |
-| `AntiMEVLiq` | double bowline | beforeLiquidate | Delays liquidations and (optionally) reserves them for known keepers. |
-| `AutoHedge` | double helix | afterBorrow, afterDeposit | Opens a Drift perp short when collateral crosses a trigger band. |
-| `ReputationRate` | rolling hitch | beforeBorrow | Discounts borrow rate against on-chain repayment reputation. |
+## Workspace packages
 
-Each is a small Rust crate under `packages/hook-library`. They are wired through the runtime in `packages/hook-runtime` and registered with the executor program in `packages/anchor-program`.
+| Package | Responsibility | Interfaces with |
+| --- | --- | --- |
+| `@agent-hooks/sdk` (`packages/sdk-ts`) | TypeScript composition builder, simulator, executor client, and hook helpers | Adapters, Anchor IDL, CLI, agent-brain |
+| `hook-runtime` (`packages/hook-runtime`) | Rust lifecycle types, deterministic hook composition, execution traces, and backtesting | Hook library and on-chain integration |
+| `anchor-program` (`packages/anchor-program`) | Anchor program for pool registration, composition storage, hook listings, and execution receipts | SDK executor client and protocol integrations |
+| `@agent-hooks/agent-brain` (`packages/agent-brain`) | Append and query event/outcome experiences through a replaceable store interface | SDK `LifecycleEvent` types and agent planners |
+| `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals and policy validation for agent plans | Brains, simulators, CLI, and operator approval flows |
+| `@agent-hooks/marginfi-adapter` | Marginfi event and market normalization | SDK and hook-runtime |
+| `@agent-hooks/kamino-adapter` | Kamino Lend event and market normalization | SDK and hook-runtime |
+| `@agent-hooks/solend-adapter` | Solend event and market normalization | SDK and hook-runtime |
+| `@agent-hooks/cli` | Create, inspect, simulate, and print deployment plans | SDK and agent-runtime |
+| `agent-hooks-vscode` (`packages/vscode-extension`) | Composition visualization, simulation, and deployment-plan tooling | SDK |
 
-## Repository layout
+### Execution and learning boundaries
 
-```
-packages/
-  hook-runtime/       Rust crate — lifecycle types, Composition + Simulator, ReputationProvider trait
-  anchor-program/     Anchor 0.31 program agent-hooks-executor (Pool, Composition, HookListing PDAs)
-  hook-library/       Six standard hooks (slip, timer, lock, bowline, helix, rolling)
-  marginfi-adapter/   Marginfi v2 client wrapper -> normalised LifecycleEvent
-  kamino-adapter/     Kamino Lend market loader -> normalised LifecycleEvent
-  solend-adapter/     Solend SDK wrapper -> normalised LifecycleEvent
-  sdk-ts/             TypeScript SDK — Composition builder, ExecutorClient, browser simulator
-  cli/                @agent-hooks/cli — create, list, simulate, deploy plan, GitHub Action scaffold
-  agent-runtime/      Provider-neutral AI proposal contract, policy validation, and approval guardrails
-  vscode-extension/   VS Code extension — composition diagram, inline simulation, deploy plan
-docs/
-  architecture.md     The runtime / executor / adapter rings
-  hooks-spec.md       Lifecycle events, flags bitmap, side-effect ABI
-  security.md         Audit scope, mainnet deploy gates, listing manifest checks
-```
+1. An adapter emits a normalized `LifecycleEvent` for a protocol action.
+2. The SDK or Rust runtime matches hooks to that event, evaluates them in configured priority order, and records the decisions and side effects.
+3. The Anchor executor stores and runs approved on-chain compositions; receipts and downstream outcome signals can be associated with the original event.
+4. An integration writes the event, composition identity, hook outcomes, reward/feedback, and optional tags to `AgentBrain.observe()`.
+5. Before planning the next launch, an agent calls `AgentBrain.recall()` for relevant prior outcomes, then simulates and validates its proposal.
+6. An authorized operator approves composition mutations and deployments.
+
+Experience records are append-only observations. They make results reproducible and available to future agents; they do not by themselves guarantee profitable behavior, prove causation, or update a model's weights.
 
 ## Quick start
 
+Requirements: Node.js 22 or newer, pnpm 9, Rust stable, and Anchor 0.31 for the on-chain program.
+
 ```bash
-cd agent-hooks
 pnpm install
 pnpm build
-cargo build       # build the Rust crates
-anchor build      # build the Anchor program
+cargo build
 ```
 
-### Use the SDK
-
-```ts
-import {
-  Composition,
-  dynamicLtv,
-  antiMevLiq,
-  simulate,
-} from "@agent-hooks/sdk";
-
-const composition = new Composition()
-  .add(dynamicLtv({
-    programId: "HookDLTV1111111111111111111111111111111111",
-    priority: 10,
-    baseLtvBps: 7_500,
-    sensitivity: 50,
-    volFloorBps: 1_000,
-    minLtvBps: 2_500,
-  }))
-  .add(antiMevLiq({
-    programId: "HookAMEV1111111111111111111111111111111111",
-    priority: 20,
-    minDelaySlots: 3,
-  }));
-
-const report = simulate(composition, events); // events: LifecycleEvent[]
-console.log(report.ltvOverrides, report.liquidationsDelayed);
-```
-
-### Use the CLI
+The CLI supports deterministic simulation and non-signing proposal creation:
 
 ```bash
-npm i -g @agent-hooks/cli
-agent-hooks list
-agent-hooks simulate --pool SOL-USDC --steps 240
-agent-hooks create hook --name MyKnot --lifecycle BeforeBorrow
-agent-hooks action          # write .github/workflows/agent-hooks-hook-ci.yml
-agent-hooks deploy --cluster mainnet   # prints the deploy plan; does not broadcast
-agent-hooks agent plan --objective "Assess SOL-USDC LTV risk"  # proposal only; no signing
+pnpm --filter @agent-hooks/cli start -- simulate --pool SOL-USDC --steps 240
+pnpm --filter @agent-hooks/cli start -- agent plan --objective "Review SOL-USDC liquidation hooks" --json
 ```
 
-## On-chain executor
+To wire experience storage, implement the `ExperienceStore` interface and pass it to `AgentBrain`:
 
-The executor lives in `packages/anchor-program/programs/agent-hooks-executor`. It exposes four instructions:
+```ts
+import { AgentBrain, type ExperienceStore } from "@agent-hooks/agent-brain";
 
-- `register_pool(adapter, bump)` — register a Marginfi/Kamino/Solend market.
-- `install_composition(slot_index, entries)` — write a Composition PDA.
-- `update_composition(entries)` — replace a Composition's hook list.
-- `run_composition(event_kind, position_owner, adapter, payload)` — invoked by the adapter on every lifecycle event.
-- `publish_hook(flags, manifest_uri, bump)` — list a hook program for marketplace discovery.
+declare const store: ExperienceStore; // application-owned durable store
+const brain = new AgentBrain(store);
+await brain.observe({
+  event,
+  feedback: {
+    compositionId: "sol-usdc-v1",
+    hookProgramIds: ["<hook-program-id>"],
+    accepted: true,
+    outcome: "executed",
+    reward: 0.7,
+  },
+  tags: ["solana", "liquidation-policy"],
+});
+const priorOutcomes = await brain.recall({ adapter: event.adapter, kind: event.kind });
+```
 
-Composition PDAs store up to eight hook entries (`hook_program`, `priority`, `flags`). The executor emits `CompositionExecuted` events that downstream indexers consume.
+## Development status
+
+The project is a development codebase. The production domain is intended to be `agenthooks.io`; it is a placeholder until a site is deployed. The Anchor program ID in this repository is a placeholder and is not a deployed Agent Hooks address. Configure a generated program ID before building or deploying on-chain artifacts. See [deployment notes](docs/deployment.md) and [security assumptions](docs/security.md).
+
+## Project layout
+
+```text
+packages/
+  agent-brain/       experience memory and retrieval boundary
+  agent-runtime/     agent proposals and policy validation
+  hook-runtime/      Rust event model and composition engine
+  hook-library/      standard lending hooks
+  anchor-program/    on-chain executor and registry
+  sdk-ts/            TypeScript SDK and simulator
+  *-adapter/         protocol-specific event normalization
+  cli/               command-line tooling
+  vscode-extension/  editor designer and simulator
+docs/                architecture, deployment, hooks, and security
+examples/            example lending-pool compositions
+assets/              architecture, lifecycle, and hook diagrams
+```
 
 ## License
 
