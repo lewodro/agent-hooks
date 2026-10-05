@@ -123,10 +123,9 @@ pub mod agent_hooks_executor {
         Ok(())
     }
 
-    /// Execute the composition against a lifecycle event. The lending adapter
-    /// CPIs this instruction inside its own before/after handler and inspects
-    /// the result. The actual hook programs are invoked separately via
-    /// `invoke_hook` so each hook can return its own logs and side-effects.
+    /// Check composition eligibility for a lifecycle event. The current
+    /// prototype records matching entries and emits receipts; it does not yet
+    /// CPI into hook programs or apply their decisions and side-effects.
     pub fn run_composition(
         ctx: Context<RunComposition>,
         event_kind: u8,
