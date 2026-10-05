@@ -63,7 +63,7 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 | `hook-runtime` (`packages/hook-runtime`) | Rust lifecycle event model, deterministic hook composition, traces, and simulation | Hook library and on-chain integrations |
 | `agent-brain` (`packages/agent-brain`) | Experience memory interface: append observations and recall prior outcomes; no model training included | SDK events and agent planners |
 | `anchor-program` (`packages/anchor-program`) | Anchor 0.31 registry prototype plus `agent-hooks-policy` slippage/cooldown CPI gate example | Solana programs and SDK clients |
-| `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals and policy validation for agent plans | Brains, simulators, CLI, and operator approval flows |
+| `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals, policy validation, and content-bound operator approvals | Brains, simulators, CLI, and operator approval flows |
 | `@agent-hooks/marginfi-adapter` | Marginfi event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/kamino-adapter` | Kamino Lend event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/solend-adapter` | Solend event and market normalization | SDK and hook-runtime |
@@ -77,7 +77,7 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 3. The registry prototype stores compositions and emits eligibility receipts; it does not invoke those listed hooks. The separate policy-gate example can enforce slippage/cooldown when an allowlisted executor actually calls it by CPI.
 4. An integration writes the event, composition identity, hook outcomes, reward/feedback, and optional tags to `AgentBrain.observe()`.
 5. Before planning the next launch, an agent calls `AgentBrain.recall()` for relevant prior outcomes, then simulates and validates its proposal.
-6. An authorized operator approves composition mutations and deployments.
+6. An authorized operator records an approval bound to the proposal's SHA-256 fingerprint. Any change to its objective, evidence, actions, risks, or simulation requirement invalidates that approval before it can reach an application-owned execution layer.
 
 Experience records are append-only observations. They make results reproducible and available to future agents; they do not by themselves guarantee profitable behavior, prove causation, or update a model's weights.
 
@@ -127,6 +127,21 @@ const priorOutcomes = await brain.recall({ adapter: event.adapter, kind: event.k
 ```
 
 Feedback is not automatically verified: missing provenance is stored as `unknown/unverified`. Use `recall({ verifiedOnly: true })` to request records labeled confirmed/finalized by a trusted chain observer; the brain validates required identifiers but does not verify RPC data or signatures itself.
+
+Before an application routes a mutation to its transaction service, bind the human review to the exact proposal body:
+
+```ts
+import { createProposalApproval, validateExecutionReadiness } from "@agent-hooks/agent-runtime";
+
+const approval = createProposalApproval(proposal, {
+  decision: "approved",
+  approver: authenticatedOperator.id,
+});
+const readiness = validateExecutionReadiness(proposal, approval);
+if (!readiness.valid) throw new Error(readiness.violations.join("; "));
+```
+
+This is an application audit primitive, not a wallet signature. The separately authorized transaction service must still authenticate its caller, re-check its limits, and use its own restricted signing authority.
 
 ## First agent: Harbor, paired with X
 

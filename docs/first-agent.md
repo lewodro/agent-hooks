@@ -27,7 +27,7 @@ flowchart LR
 3. Capture public X posts with their post ID, author, timestamp, and canonical link. Treat these as attributed reports and claims, not as protocol state; keep them as proposal evidence until a social-observation store is added.
 4. Harbor recalls similar lifecycle experiences, summarizes evidence and uncertainty, and drafts a versioned proposal with `agent-runtime`.
 5. Replay the candidate against historical events. Reject proposals that violate policy, omit required evidence, or fail configured risk limits.
-6. An operator reviews the trace and approves or rejects the proposal. Only a separately authorized operator can install a composition.
+6. An operator reviews the trace and approves or rejects the proposal. `@agent-hooks/agent-runtime` binds that decision to a SHA-256 fingerprint of the exact proposal content, so edits invalidate the approval. Only a separately authorized operator can install a composition.
 7. Harbor can publish the reviewed result on X with links to the source data and limitations. X posting permission and a signing permission for program transactions belong in separate services and secret scopes.
 
 ## Build sequence
@@ -41,6 +41,6 @@ flowchart LR
 
 ## Initial permissions
 
-Harbor can read configured public X sources, read indexed protocol data, append experience records, simulate compositions, and draft proposals. At first, it should not write to X, sign Solana transactions, or install compositions. X posting can be enabled as a separate reviewed permission after the reporting pipeline has an audit trail.
+Harbor can read configured public X sources, read indexed protocol data, append experience records, simulate compositions, and draft proposals. At first, it should not write to X, sign Solana transactions, or install compositions. X posting can be enabled as a separate reviewed permission after the reporting pipeline has an audit trail. A proposal approval is an audit record, not signing authority: the posting service and transaction service must authenticate their operators and keep credentials in separate scopes.
 
 The repository now includes an opt-in local X draft/post script at `apps/x-agent-bot/agent_x.py`, a local Qwen 2.5 0.5B model path, and a simulated React prompt preview at `apps/web/components/XAgentChatbox.tsx`. It supports reusable per-user OAuth 1.0a or OAuth 2.0 user-context credentials. It is dry-run by default; unattended publishing requires the explicit `--auto-post` flag and `X_AGENT_AUTOPUBLISH=true`, and the host must still supply a scheduler and monitor it. The bot has no blockchain signer and is not connected to a durable experience store or a live model-learning loop. The treasury toolkit currently creates reviewed, chain-qualified proposals for Solana, Bitcoin, and Ethereum but does not sign or broadcast transfers. The Anchor composition registry still does not CPI into its listed hooks; see [security boundaries](security.md) and the [policy hook example](../packages/anchor-program/README.md).
