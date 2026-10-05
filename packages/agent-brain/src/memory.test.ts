@@ -243,6 +243,15 @@ test("memory store rejects unsafe capacities", () => {
   assert.throws(() => new MemoryExperienceStore(Number.MAX_SAFE_INTEGER + 1), /maxRecords/);
 });
 
+test("memory store validates records even when bypassing AgentBrain", async () => {
+  const store = new MemoryExperienceStore();
+  const valid = await new AgentBrain(new MemoryExperienceStore()).observe({ event: event(), feedback, tags: [] });
+  const malformed = structuredClone(valid);
+  malformed.event.payload = new Array(257).fill(0);
+  await assert.rejects(store.append(malformed), /event payload/);
+  assert.deepEqual(await store.query({}), [], "invalid records are never retained");
+});
+
 test("recall filters by feedback, hook, tag, and observed time window", async () => {
   const brain = new AgentBrain(new MemoryExperienceStore());
   const older = await brain.observe({

@@ -79,6 +79,105 @@ export interface ExperienceStore {
   query(query: ExperienceQuery): Promise<Experience[]>;
 }
 
+const EVENT_KINDS = new Set<LifecycleEvent["kind"]>([
+  "beforeDeposit", "afterDeposit", "beforeBorrow", "afterBorrow",
+  "beforeRepay", "afterRepay", "beforeLiquidate", "afterLiquidate",
+]);
+const ADAPTERS = new Set<LifecycleEvent["adapter"]>(["marginfi", "kamino", "solend"]);
+const MAX_ID_LENGTH = 256;
+const MAX_EVENT_PAYLOAD_BYTES = 256;
+const MAX_ORACLE_POINTS = 16;
+const MAX_HOOKS = 8;
+const MAX_TRACE_ENTRIES = 8;
+const MAX_TAGS = 64;
+const MAX_TAG_LENGTH = 128;
+
+/** Validate persisted or caller-provided experiences at every storage boundary. */
+export function validateExperience(value: unknown): asserts value is Experience {
+  if (!isRecord(value) || value.schemaVersion !== 1) {
+    throw new TypeError("experience must use schema version 1");
+  }
+  requireString(value.id, "experience id", MAX_ID_LENGTH);
+  requireString(value.observedAt, "experience observedAt", 64);
+  if (!Number.isFinite(Date.parse(value.observedAt))) {
+    throw new TypeError("experience observedAt must be a valid date string");
+  }
+  if (!isRecord(value.event)) throw new TypeError("experience event must be an object");
+  const event = value.event;
+  if (!EVENT_KINDS.has(event.kind as LifecycleEvent["kind"])) {
+    throw new TypeError("experience event kind is not supported");
+  }
+  if (!ADAPTERS.has(event.adapter as LifecycleEvent["adapter"])) {
+    throw new TypeError("experience event adapter is not supported");
+  }
+  if (!Array.isArray(event.payload) || event.payload.length > MAX_EVENT_PAYLOAD_BYTES ||
+    event.payload.some((byte) => !Number.isInteger(byte) || byte < 0 || byte > 255)) {
+    throw new RangeError(`event payload must contain at most ${MAX_EVENT_PAYLOAD_BYTES} bytes`);
+  }
+  if (!isRecord(event.position)) throw new TypeError("experience position must be an object");
+  const position = event.position;
+  requireString(position.owner, "position owner", 128);
+  requireString(position.collateralMint, "collateral mint", 128);
+  requireString(position.debtMint, "debt mint", 128);
+  requireFiniteNonNegative(position.collateralAmount, "collateral amount");
+  requireFiniteNonNegative(position.debtAmount, "debt amount");
+  requireBasisPoints(position.ltvBps, "position LTV");
+  requireBasisPoints(position.liquidationThresholdBps, "liquidation threshold");
+
+  if (!isRecord(event.market)) throw new TypeError("experience market must be an object");
+  const market = event.market;
+  requireSafeNonNegativeInteger(market.slot, "market slot");
+  requireSafeInteger(market.timestamp, "market timestamp");
+  requireFiniteNonNegative(market.realisedVolBps, "realised volatility");
+  requireBasisPoints(market.utilisationBps, "market utilisation");
+  if (!Array.isArray(market.oraclePoints) || market.oraclePoints.length > MAX_ORACLE_POINTS) {
+    throw new RangeError(`market must contain at most ${MAX_ORACLE_POINTS} oracle points`);
+  }
+  for (const [index, point] of market.oraclePoints.entries()) {
+    if (!isRecord(point)) throw new TypeError(`oracle point ${index} must be an object`);
+    requireString(point.mint, `oracle point ${index} mint`, 128);
+    requireUnsignedBigInt(point.priceE8, `oracle point ${index} priceE8`, true);
+    requireUnsignedBigInt(point.confidenceE8, `oracle point ${index} confidenceE8`);
+    requireUnsignedBigInt(point.slot, `oracle point ${index} slot`);
+  }
+
+  if (!isRecord(value.feedback)) throw new TypeError("experience feedback must be an object");
+  const feedback = value.feedback;
+  requireString(feedback.compositionId, "feedback compositionId", MAX_ID_LENGTH);
+  if (!Array.isArray(feedback.hookProgramIds) || feedback.hookProgramIds.length > MAX_HOOKS) {
+    throw new RangeError(`feedback may contain at most ${MAX_HOOKS} hook IDs`);
+  }
+  for (const hookId of feedback.hookProgramIds) requireString(hookId, "hookProgramId", 128);
+  if (typeof feedback.accepted !== "boolean" ||
+    !["executed", "rejected", "skipped", "failed"].includes(String(feedback.outcome))) {
+    throw new TypeError("experience feedback outcome or accepted flag is invalid");
+  }
+  if (feedback.reward !== undefined) requireFiniteNumber(feedback.reward, "feedback reward");
+  if (feedback.rewardUnit !== undefined) requireString(feedback.rewardUnit, "feedback rewardUnit", 128);
+  if (feedback.reward !== undefined && feedback.rewardUnit === undefined) {
+    throw new TypeError("feedback rewardUnit is required when reward is set");
+  }
+  if (feedback.reward === undefined && feedback.rewardUnit !== undefined) {
+    throw new TypeError("feedback rewardUnit requires a reward value");
+  }
+  if (feedback.reason !== undefined) requireString(feedback.reason, "feedback reason", 1_024, true);
+
+  if (!isRecord(value.evidence)) throw new TypeError("experience evidence must be an object");
+  const evidence = value.evidence;
+  if (!["simulation", "operator", "chain", "unknown"].includes(String(evidence.channel)) ||
+    !["unverified", "observed", "submitted", "confirmed", "finalized", "failed"].includes(String(evidence.status))) {
+    throw new TypeError("experience evidence channel or status is invalid");
+  }
+  validateEvidence(evidence as unknown as ExecutionEvidence);
+
+  if (!Array.isArray(value.trace)) throw new TypeError("experience trace must be an array");
+  validateTrace(value.trace as HookTraceEntry[]);
+  if (!Array.isArray(value.tags) || value.tags.length > MAX_TAGS) {
+    throw new RangeError(`experience may contain at most ${MAX_TAGS} tags`);
+  }
+  for (const tag of value.tags) requireString(tag, "experience tag", MAX_TAG_LENGTH, true);
+}
+
 export class ExperienceIdConflictError extends Error {
   constructor(public readonly experienceId: string) {
     super(`experience ID ${experienceId} already exists with different content`);
@@ -97,6 +196,7 @@ export class MemoryExperienceStore implements ExperienceStore {
   }
 
   async append(experience: Experience): Promise<void> {
+    validateExperience(experience);
     const existing = this.records.get(experience.id);
     if (existing) {
       if (isDeepStrictEqual(existing, experience)) return;
@@ -220,6 +320,7 @@ export class AgentBrain {
       },
       tags: [...new Set(input.tags.map((tag) => tag.trim()).filter(Boolean))],
     });
+    validateExperience(experience);
     await this.store.append(experience);
     await this.notifySubscribers(experience);
     return experience;
@@ -275,12 +376,8 @@ export function isMarkedVerifiedChainOutcome(evidence: ExecutionEvidence): boole
 }
 
 function validateEvidence(evidence: ExecutionEvidence): void {
-  if (evidence.network !== undefined && !evidence.network.trim()) {
-    throw new TypeError("evidence network must not be empty");
-  }
-  if (evidence.transactionId !== undefined && !evidence.transactionId.trim()) {
-    throw new TypeError("evidence transactionId must not be empty");
-  }
+  if (evidence.network !== undefined) requireString(evidence.network, "evidence network", 128);
+  if (evidence.transactionId !== undefined) requireString(evidence.transactionId, "evidence transactionId", 256);
   for (const height of [evidence.slot, evidence.blockHeight]) {
     if (height !== undefined && (!Number.isSafeInteger(height) || height < 0)) {
       throw new TypeError("evidence slot and blockHeight must be non-negative safe integers");
@@ -303,21 +400,71 @@ function validateEvidence(evidence: ExecutionEvidence): void {
 }
 
 function validateTrace(trace: readonly HookTraceEntry[]): void {
-  if (trace.length > 64) throw new RangeError("trace exceeds the maximum of 64 hook entries");
+  if (trace.length > MAX_TRACE_ENTRIES) {
+    throw new RangeError(`trace exceeds the maximum of ${MAX_TRACE_ENTRIES} hook entries`);
+  }
   for (const entry of trace) {
-    if (!entry.hookId.trim()) throw new TypeError("trace hookId must not be empty");
-    if (entry.reason !== undefined && entry.reason.length > 1_024) {
+    if (!isRecord(entry)) throw new TypeError("trace entries must be objects");
+    requireString(entry.hookId, "trace hookId", 128);
+    if (!["accepted", "accepted_with", "rejected", "skipped", "failed"].includes(entry.decision)) {
+      throw new TypeError("trace decision is invalid");
+    }
+    if (entry.reason !== undefined && (typeof entry.reason !== "string" || entry.reason.length > 1_024)) {
       throw new RangeError("trace reason exceeds 1024 characters");
+    }
+    if (entry.effects !== undefined && !Array.isArray(entry.effects)) {
+      throw new TypeError("trace effects must be an array");
     }
     if ((entry.effects?.length ?? 0) > 16) {
       throw new RangeError("a trace entry may contain at most 16 effects");
     }
     for (const effect of entry.effects ?? []) {
-      if (!effect.kind.trim()) throw new TypeError("trace effect kind must not be empty");
+      if (!isRecord(effect)) throw new TypeError("trace effects must be objects");
+      requireString(effect.kind, "trace effect kind", 128);
       if (effect.numericValue !== undefined && !Number.isFinite(effect.numericValue)) {
         throw new TypeError("trace effect numericValue must be finite");
       }
+      if (effect.reference !== undefined) requireString(effect.reference, "trace effect reference", 256, true);
     }
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function requireString(value: unknown, field: string, maximum: number, allowEmpty = false): asserts value is string {
+  if (typeof value !== "string" || value.length > maximum || (!allowEmpty && !value.trim())) {
+    throw new TypeError(`${field} must be a${allowEmpty ? "" : " non-empty"} string of at most ${maximum} characters`);
+  }
+}
+
+function requireFiniteNumber(value: unknown, field: string): asserts value is number {
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new TypeError(`${field} must be finite`);
+}
+
+function requireFiniteNonNegative(value: unknown, field: string): asserts value is number {
+  requireFiniteNumber(value, field);
+  if (value < 0) throw new RangeError(`${field} must be non-negative`);
+}
+
+function requireSafeInteger(value: unknown, field: string): asserts value is number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) throw new TypeError(`${field} must be a safe integer`);
+}
+
+function requireSafeNonNegativeInteger(value: unknown, field: string): asserts value is number {
+  requireSafeInteger(value, field);
+  if (value < 0) throw new RangeError(`${field} must be non-negative`);
+}
+
+function requireBasisPoints(value: unknown, field: string): asserts value is number {
+  requireSafeInteger(value, field);
+  if (value < 0 || value > 10_000) throw new RangeError(`${field} must be between 0 and 10000 bps`);
+}
+
+function requireUnsignedBigInt(value: unknown, field: string, requirePositive = false): asserts value is bigint {
+  if (typeof value !== "bigint" || value < 0n || (requirePositive && value === 0n)) {
+    throw new TypeError(`${field} must be a ${requirePositive ? "positive" : "non-negative"} bigint`);
   }
 }
 

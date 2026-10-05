@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 
-import { ExperienceIdConflictError, type Experience, type ExperienceQuery, type ExperienceStore } from "./memory.js";
+import {
+  ExperienceIdConflictError,
+  validateExperience,
+  type Experience,
+  type ExperienceQuery,
+  type ExperienceStore,
+} from "./memory.js";
 
 /** Minimal SQL driver contract; compatible with common PostgreSQL pool/client query methods. */
 export interface PostgreSqlExecutor {
@@ -45,6 +51,7 @@ export class PostgresExperienceStore implements ExperienceStore {
   }
 
   async append(experience: Experience): Promise<void> {
+    validateExperience(experience);
     const payload = canonicalJson(experience);
     const hash = createHash("sha256").update(payload).digest("hex");
     const inserted = await this.db.query(
@@ -140,8 +147,25 @@ export class PostgresExperienceStore implements ExperienceStore {
   }
 }
 
-function canonicalJson(value: unknown): string {
-  return JSON.stringify(sortJsonKeys(value));
+function canonicalJson(experience: Experience): string {
+  // JSON has no bigint primitive. Preserve the SDK's fixed-point oracle values
+  // as decimal strings in PostgreSQL and restore them at the store boundary.
+  const serializable = {
+    ...experience,
+    event: {
+      ...experience.event,
+      market: {
+        ...experience.event.market,
+        oraclePoints: experience.event.market.oraclePoints.map((point) => ({
+          ...point,
+          priceE8: point.priceE8.toString(),
+          confidenceE8: point.confidenceE8.toString(),
+          slot: point.slot.toString(),
+        })),
+      },
+    },
+  };
+  return JSON.stringify(sortJsonKeys(serializable));
 }
 
 function sortJsonKeys(value: unknown): unknown {
@@ -159,11 +183,56 @@ function decodeExperience(value: unknown): Experience {
   if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
     throw new TypeError("PostgreSQL experience payload is not an object");
   }
-  const experience = decoded as Experience;
+  const experience = decoded as Experience & {
+    event: Omit<Experience["event"], "market"> & {
+      market: Omit<Experience["event"]["market"], "oraclePoints"> & {
+        oraclePoints: Array<{
+          mint: string;
+          priceE8: string;
+          confidenceE8: string;
+          slot: string;
+        }>;
+      };
+    };
+  };
   if (experience.schemaVersion !== 1 || typeof experience.id !== "string" ||
-    !experience.event || !experience.feedback || !experience.evidence || !Array.isArray(experience.trace) ||
+    !experience.event || typeof experience.event !== "object" ||
+    !experience.event.market || typeof experience.event.market !== "object" ||
+    !Array.isArray(experience.event.market.oraclePoints) ||
+    !experience.feedback || !experience.evidence || !Array.isArray(experience.trace) ||
     !Array.isArray(experience.tags)) {
     throw new TypeError("PostgreSQL experience payload does not match schema version 1");
   }
-  return experience;
+  let restored: Experience;
+  try {
+    restored = {
+      ...experience,
+      event: {
+        ...experience.event,
+        market: {
+          ...experience.event.market,
+          oraclePoints: experience.event.market.oraclePoints.map((point) => ({
+            ...point,
+            priceE8: parseUnsignedBigInt(point.priceE8, "priceE8"),
+            confidenceE8: parseUnsignedBigInt(point.confidenceE8, "confidenceE8"),
+            slot: parseUnsignedBigInt(point.slot, "oracle slot"),
+          })),
+        },
+      },
+    } as Experience;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new TypeError(`PostgreSQL experience payload has invalid oracle integers: ${error.message}`);
+    }
+    throw error;
+  }
+  validateExperience(restored);
+  return restored;
+}
+
+function parseUnsignedBigInt(value: unknown, field: string): bigint {
+  if (typeof value !== "string" || !/^(0|[1-9][0-9]*)$/.test(value)) {
+    throw new TypeError(`${field} must be a non-negative decimal string`);
+  }
+  return BigInt(value);
 }

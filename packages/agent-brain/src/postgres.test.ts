@@ -102,3 +102,32 @@ test("PostgreSQL queries bind filters, cap results, and require chain evidence i
   ]);
   assert.equal(statement.statement.includes("sol-usdc-v1"), false, "untrusted filters are parameterized");
 });
+
+test("PostgreSQL preserves large oracle integers across JSON persistence", async () => {
+  const store = new PostgresExperienceStore(new FakePostgres());
+  const item = sample();
+  const priceE8 = 9_007_199_254_740_993n;
+  const confidenceE8 = 12_345_678_901_234_567n;
+  item.event.market.oraclePoints.push({
+    mint: "mint-a",
+    priceE8,
+    confidenceE8,
+    slot: 9_007_199_254_740_999n,
+  });
+
+  await store.append(item);
+  const [restored] = await store.query({});
+  assert.equal(restored?.event.market.oraclePoints[0]?.priceE8, priceE8);
+  assert.equal(restored?.event.market.oraclePoints[0]?.confidenceE8, confidenceE8);
+  assert.equal(restored?.event.market.oraclePoints[0]?.slot, 9_007_199_254_740_999n);
+});
+
+test("PostgreSQL rejects malformed records already present in storage", async () => {
+  const db = new FakePostgres();
+  const store = new PostgresExperienceStore(db);
+  await store.append(sample());
+  const persisted = db.payloads[0] as unknown as { feedback: { outcome: string } };
+  persisted.feedback.outcome = "invented-outcome";
+
+  await assert.rejects(store.query({}), /feedback outcome or accepted flag is invalid/);
+});
