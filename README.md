@@ -75,6 +75,10 @@ pnpm --filter @agent-hooks/cli start -- simulate --pool SOL-USDC --steps 240
 pnpm --filter @agent-hooks/cli start -- agent plan --objective "Review SOL-USDC liquidation hooks" --json
 ```
 
+## Standalone TypeScript toolkit
+
+Install the independently packable TypeScript toolkit with `npm install @agent-hooks/toolkit`. It separates Solana hook evaluation, agent learning, daily X drafting, and treasury proposal review into import paths documented in [`packages/toolkit/README.md`](packages/toolkit/README.md). The X workflow requires a human approval step; treasury APIs create bounded proposals and record review decisions but do not hold keys or sign transfers. The package is configured for public npm distribution, but has not yet been published.
+
 To wire experience storage, implement the `ExperienceStore` interface and pass it to `AgentBrain`:
 
 ```ts
@@ -116,6 +120,7 @@ packages/
   hook-library/      standard lending hooks
   anchor-program/    on-chain executor and registry
   sdk-ts/            TypeScript SDK and simulator
+  toolkit/           standalone, packable TypeScript hooks + agent toolkit
   *-adapter/         protocol-specific event normalization
   cli/               command-line tooling
   vscode-extension/  editor designer and simulator
@@ -126,4 +131,4 @@ assets/              architecture, lifecycle, and hook diagrams
 
 ## License
 
-Apache-2.0.
+MIT. See [LICENSE](LICENSE). The standalone toolkit is also MIT licensed.
