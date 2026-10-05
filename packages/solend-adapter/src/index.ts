@@ -1,5 +1,10 @@
 import { Connection, PublicKey } from "@solana/web3.js";
-import { SolendMarket, SOLEND_PRODUCTION_PROGRAM_ID } from "@solendprotocol/solend-sdk";
+import {
+  fetchObligationsOfPoolByWallet,
+  formatObligation,
+  getReservesOfPool,
+  SOLEND_PRODUCTION_PROGRAM_ID,
+} from "@solendprotocol/solend-sdk";
 
 import type {
   LendingAdapter,
@@ -20,7 +25,6 @@ export interface SolendAdapterOptions {
 export class SolendAdapter implements LendingAdapter {
   public readonly kind = "solend" as const;
   private readonly options: SolendAdapterOptions;
-  private market: SolendMarket | null = null;
 
   constructor(options: SolendAdapterOptions) {
     this.options = options;
@@ -30,34 +34,22 @@ export class SolendAdapter implements LendingAdapter {
     return SOLEND_PROGRAM_ID;
   }
 
-  async loadMarket(): Promise<SolendMarket> {
-    if (this.market) return this.market;
-    const connection = new Connection(this.options.rpcEndpoint, "confirmed");
-    const market = await SolendMarket.initialize(connection, "production");
-    await market.loadAll();
-    this.market = market;
-    return market;
-  }
-
   async snapshotPool(market: PublicKey): Promise<PoolSnapshot> {
-    const m = await this.loadMarket();
-    const reserves: ReserveSnapshot[] = [];
-    let totalAssets = 0;
-    let totalLiabilities = 0;
-    for (const reserve of m.reserves) {
-      const stats = reserve.stats;
-      if (!stats) continue;
-      const assets = Number(stats.totalDepositsWads) / 1e18;
-      const liabilities = Number(stats.totalBorrowsWads) / 1e18;
-      totalAssets += assets;
-      totalLiabilities += liabilities;
-      reserves.push({
-        mint: reserve.config.liquidityToken.mint,
-        symbol: reserve.config.liquidityToken.symbol,
-        depositApyBps: Math.round(stats.supplyInterestAPY * 10_000),
-        borrowApyBps: Math.round(stats.borrowInterestAPY * 10_000),
-      });
-    }
+    const connection = new Connection(this.options.rpcEndpoint, "confirmed");
+    const reserves = await getReservesOfPool(
+      market,
+      connection,
+      SOLEND_PROGRAM_ID.toBase58(),
+      await connection.getSlot(),
+    );
+    const totalAssets = reserves.reduce((sum, reserve) => sum + reserve.totalSupplyUsd.toNumber(), 0);
+    const totalLiabilities = reserves.reduce((sum, reserve) => sum + reserve.totalBorrowUsd.toNumber(), 0);
+    const reserveSnapshots: ReserveSnapshot[] = reserves.map((reserve) => ({
+      mint: reserve.mintAddress,
+      symbol: reserve.symbol,
+      depositApyBps: Math.round(reserve.supplyInterest.toNumber() * 10_000),
+      borrowApyBps: Math.round(reserve.borrowInterest.toNumber() * 10_000),
+    }));
     return {
       adapter: "solend",
       market,
@@ -67,7 +59,7 @@ export class SolendAdapter implements LendingAdapter {
         totalAssets > 0
           ? Math.min(10_000, Math.round((totalLiabilities / totalAssets) * 10_000))
           : 0,
-      reserves,
+      reserves: reserveSnapshots,
     };
   }
 
@@ -76,33 +68,57 @@ export class SolendAdapter implements LendingAdapter {
     kind: LifecycleEventKind;
     payload?: Uint8Array;
   }): Promise<LifecycleEvent> {
-    const m = await this.loadMarket();
-    const obligation = await m.fetchObligationByWallet(args.accountPubkey);
-    if (!obligation) {
+    const market = this.options.marketAddress;
+    if (!market) throw new Error("SolendAdapter requires marketAddress to read an obligation");
+    const connection = new Connection(this.options.rpcEndpoint, "confirmed");
+    const slot = await connection.getSlot();
+    const reserves = await getReservesOfPool(
+      market,
+      connection,
+      SOLEND_PROGRAM_ID.toBase58(),
+      slot,
+    );
+    const obligations = await fetchObligationsOfPoolByWallet(
+      args.accountPubkey,
+      market,
+      SOLEND_PROGRAM_ID,
+      connection,
+    );
+    const rawObligation = obligations[0];
+    if (!rawObligation) {
       throw new Error(`Solend obligation for ${args.accountPubkey.toBase58()} not found`);
     }
+    const reserveMap = Object.fromEntries(reserves.map((reserve) => [reserve.address, reserve]));
+    const obligation = formatObligation(rawObligation, reserveMap);
     const firstDeposit = obligation.deposits[0];
     const firstBorrow = obligation.borrows[0];
     const position: PositionSnapshot = {
       owner: args.accountPubkey.toBase58(),
       collateralMint: firstDeposit?.mintAddress ?? PublicKey.default.toBase58(),
       debtMint: firstBorrow?.mintAddress ?? PublicKey.default.toBase58(),
-      collateralAmount: firstDeposit ? firstDeposit.amount : 0,
-      debtAmount: firstBorrow ? firstBorrow.amount : 0,
-      ltvBps: Math.round(obligation.totalBorrowValue / Math.max(1, obligation.totalSupplyValue) * 10_000),
+      collateralAmount: firstDeposit?.amount.toNumber() ?? 0,
+      debtAmount: firstBorrow?.amount.toNumber() ?? 0,
+      ltvBps: Math.round(
+        (obligation.totalBorrowValue.toNumber() / Math.max(1, obligation.totalSupplyValue.toNumber())) * 10_000,
+      ),
       liquidationThresholdBps: 8_500,
     };
-    const snapshot = await this.snapshotPool(args.accountPubkey);
+    const snapshot = await this.snapshotPool(market);
     return {
       kind: args.kind,
       adapter: "solend",
       position,
       market: {
-        slot: await m.connection.getSlot(),
+        slot,
         timestamp: Math.floor(Date.now() / 1000),
         realisedVolBps: 300,
         utilisationBps: snapshot.utilisationBps,
-        oraclePoints: [],
+        oraclePoints: reserves.map((reserve) => ({
+          mint: reserve.mintAddress,
+          priceE8: BigInt(Math.round(reserve.price.toNumber() * 1e8)),
+          confidenceE8: 0n,
+          slot: BigInt(slot),
+        })),
       },
       payload: Array.from(args.payload ?? new Uint8Array()),
     };

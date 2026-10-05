@@ -2,6 +2,8 @@ import { Connection, PublicKey } from "@solana/web3.js";
 import {
   MarginfiClient,
   getConfig,
+  MarginRequirementType,
+  PriceBias,
   type Environment,
 } from "@mrgnlabs/marginfi-client-v2";
 import { NodeWallet } from "@mrgnlabs/mrgn-common";
@@ -56,14 +58,33 @@ export class MarginfiAdapter implements LendingAdapter {
 
   async snapshotPool(groupPubkey: PublicKey): Promise<PoolSnapshot> {
     const client = await this.connect();
-    const group = client.group;
     const banks = client.banks;
     const totalAssets = Array.from(banks.values()).reduce(
-      (acc, bank) => acc + Number(bank.computeAssetUsdValue(bank.totalAssetShares, bank.config.assetWeightInit, "EQUITY", "STRICT")),
+      (acc, bank) => {
+        const oraclePrice = client.getOraclePriceByBank(bank.address);
+        return oraclePrice
+          ? acc + bank.computeAssetUsdValue(
+              oraclePrice,
+              bank.totalAssetShares,
+              MarginRequirementType.Equity,
+              PriceBias.None,
+            ).toNumber()
+          : acc;
+      },
       0,
     );
     const totalLiabilities = Array.from(banks.values()).reduce(
-      (acc, bank) => acc + Number(bank.computeLiabilityUsdValue(bank.totalLiabilityShares, bank.config.liabilityWeightInit, "EQUITY", "STRICT")),
+      (acc, bank) => {
+        const oraclePrice = client.getOraclePriceByBank(bank.address);
+        return oraclePrice
+          ? acc + bank.computeLiabilityUsdValue(
+              oraclePrice,
+              bank.totalLiabilityShares,
+              MarginRequirementType.Equity,
+              PriceBias.None,
+            ).toNumber()
+          : acc;
+      },
       0,
     );
     return {
@@ -81,8 +102,7 @@ export class MarginfiAdapter implements LendingAdapter {
         depositApyBps: Math.round(bank.computeInterestRates().lendingRate.toNumber() * 10_000),
         borrowApyBps: Math.round(bank.computeInterestRates().borrowingRate.toNumber() * 10_000),
       })),
-      _ = group,
-    } as PoolSnapshot;
+    };
   }
 
   /**
@@ -96,23 +116,27 @@ export class MarginfiAdapter implements LendingAdapter {
     payload?: Uint8Array;
   }): Promise<LifecycleEvent> {
     const client = await this.connect();
-    const account = await client.getMarginfiAccount(args.accountPubkey);
+    const [account] = await client.getMultipleMarginfiAccounts([args.accountPubkey]);
     if (!account) throw new Error(`Marginfi account ${args.accountPubkey.toBase58()} not found`);
     const balances = account.activeBalances;
-    const collateral = balances.find((b) => b.assetShares.gtn(0));
-    const debt = balances.find((b) => b.liabilityShares.gtn(0));
+    const collateral = balances.find((b) => b.assetShares.gt(0));
+    const debt = balances.find((b) => b.liabilityShares.gt(0));
+    const collateralBank = collateral ? client.banks.get(collateral.bankPk.toBase58()) : undefined;
+    const debtBank = debt ? client.banks.get(debt.bankPk.toBase58()) : undefined;
+    const health = account.computeHealthComponents(MarginRequirementType.Maintenance);
+    const slot = await client.provider.connection.getSlot();
     const position: PositionSnapshot = {
       owner: account.authority.toBase58(),
-      collateralMint: collateral?.bankPk.toBase58() ?? PublicKey.default.toBase58(),
-      debtMint: debt?.bankPk.toBase58() ?? PublicKey.default.toBase58(),
-      collateralAmount: collateral ? Number(collateral.assetShares.toString()) : 0,
-      debtAmount: debt ? Number(debt.liabilityShares.toString()) : 0,
-      ltvBps: account.computeHealthComponents("MAINTENANCE").assets > 0
-        ? Math.round(
-            (Number(account.computeHealthComponents("MAINTENANCE").liabilities) /
-              Number(account.computeHealthComponents("MAINTENANCE").assets)) *
-              10_000,
-          )
+      collateralMint: collateralBank?.mint.toBase58() ?? PublicKey.default.toBase58(),
+      debtMint: debtBank?.mint.toBase58() ?? PublicKey.default.toBase58(),
+      collateralAmount: collateral && collateralBank
+        ? collateral.computeQuantity(collateralBank).assets.toNumber()
+        : 0,
+      debtAmount: debt && debtBank
+        ? debt.computeQuantity(debtBank).liabilities.toNumber()
+        : 0,
+      ltvBps: health.assets.gt(0)
+        ? Math.round((health.liabilities.toNumber() / health.assets.toNumber()) * 10_000)
         : 0,
       liquidationThresholdBps: 8_000,
     };
@@ -122,11 +146,20 @@ export class MarginfiAdapter implements LendingAdapter {
       adapter: "marginfi",
       position,
       market: {
-        slot: await client.provider.connection.getSlot(),
+        slot,
         timestamp: Math.floor(Date.now() / 1000),
         realisedVolBps: 200,
         utilisationBps: snapshot.utilisationBps,
-        oraclePoints: [],
+        oraclePoints: Array.from(client.oraclePrices.entries()).flatMap(([bankAddress, price]) => {
+          const bank = client.banks.get(bankAddress);
+          if (!bank) return [];
+          return [{
+            mint: bank.mint.toBase58(),
+            priceE8: BigInt(Math.round(price.priceRealtime.price.toNumber() * 1e8)),
+            confidenceE8: BigInt(Math.round(price.priceRealtime.confidence.toNumber() * 1e8)),
+            slot: BigInt(slot),
+          }];
+        }),
       },
       payload: Array.from(args.payload ?? new Uint8Array()),
     };
