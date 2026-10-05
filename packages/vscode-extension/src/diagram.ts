@@ -54,7 +54,7 @@ export function renderKnotDiagram(): string {
       ${ropes}
       <defs>
         <pattern id="grid" patternUnits="userSpaceOnUse" width="32" height="32">
-          <rect width="32" height="32" fill="var(--surface)" />
+          <rect width="32" height="32" fill="var(--surface-raised)" />
           <path d="M32 0H0V32" stroke="var(--border)" stroke-width="1" fill="none" />
         </pattern>
       </defs>
