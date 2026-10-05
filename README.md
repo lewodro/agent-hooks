@@ -117,11 +117,16 @@ await brain.observe({
     accepted: true,
     outcome: "executed",
     reward: 0.7,
+    rewardUnit: "normalized_0_1",
   },
+  evidence: { channel: "simulation", status: "observed" },
+  trace: [{ hookId: "<hook-program-id>", decision: "accepted" }],
   tags: ["solana", "liquidation-policy"],
 });
 const priorOutcomes = await brain.recall({ adapter: event.adapter, kind: event.kind });
 ```
+
+Feedback is not automatically verified: missing provenance is stored as `unknown/unverified`. Use `recall({ verifiedOnly: true })` to request records labeled confirmed/finalized by a trusted chain observer; the brain validates required identifiers but does not verify RPC data or signatures itself.
 
 ## First agent: Harbor, paired with X
 
