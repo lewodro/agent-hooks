@@ -74,3 +74,10 @@ test("X draft bounds and source IDs are checked before invoking the writer", asy
   await assert.rejects(x.draft("2026-10-05", [source, source]), /unique/);
   assert.equal(writes, 0);
 });
+
+test("long-running X workflow has a configurable bounded history", async () => {
+  const x = new DailyXWorkflow({ write: async () => "daily update" }, undefined, 1);
+  await x.draft("2026-10-05", []);
+  await assert.rejects(x.draft("2026-10-06", []), /draft capacity/);
+  assert.throws(() => new DailyXWorkflow({ write: async () => "ok" }, undefined, 0), /maxDrafts/);
+});

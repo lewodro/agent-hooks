@@ -4,6 +4,7 @@ import type { AgentExperience } from "./agents.js";
 
 const MAX_EXPERIENCES_PER_POST = 100;
 const MAX_POST_LENGTH = 280;
+const DEFAULT_MAX_DRAFTS = 10_000;
 
 export interface XPostDraft {
   id: string;
@@ -33,7 +34,12 @@ export class DailyXWorkflow {
   constructor(
     private readonly writer: XPostWriter,
     private readonly publisher?: XPublisher,
-  ) {}
+    private readonly maxDrafts = DEFAULT_MAX_DRAFTS,
+  ) {
+    if (!Number.isSafeInteger(maxDrafts) || maxDrafts < 1 || maxDrafts > 1_000_000) {
+      throw new RangeError("maxDrafts must be a safe integer between 1 and 1000000");
+    }
+  }
 
   async draft(date: string, experiences: readonly AgentExperience[]): Promise<XPostDraft> {
     validateDate(date);
@@ -46,6 +52,9 @@ export class DailyXWorkflow {
     }
     const activeDraft = [...this.drafts.values()].find((draft) => draft.date === date && draft.status !== "rejected");
     if (activeDraft) throw new Error(`A non-rejected X draft already exists for ${date}`);
+    if (this.drafts.size >= this.maxDrafts) {
+      throw new Error(`X workflow reached its ${this.maxDrafts} draft capacity; persist or archive reviewed history`);
+    }
     const text = (await this.writer.write({ date, experiences })).trim();
     if (!text) throw new Error("X post writer returned an empty draft");
     if ([...text].length > MAX_POST_LENGTH) throw new Error(`Draft exceeds ${MAX_POST_LENGTH} code points`);
