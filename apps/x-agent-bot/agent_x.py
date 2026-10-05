@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Locally draft Agent Hooks X posts; publishing is explicit and interactive."""
+"""Draft Agent Hooks X posts; publishing is opt-in and profile-authorized."""
 
 from __future__ import annotations
 
@@ -94,7 +94,7 @@ def already_posted_today(history: Path) -> bool:
     return False
 
 
-def publish_post(text: str) -> str:
+def publish_post(text: str, env_file: Path) -> str:
     try:
         import tweepy
         from dotenv import load_dotenv
@@ -103,25 +103,34 @@ def publish_post(text: str) -> str:
             "Install apps/x-agent-bot/requirements.txt to enable X posting"
         ) from exc
 
-    load_dotenv(ROOT / ".env.agent", override=False)
-    names = (
-        "X_CONSUMER_KEY",
-        "X_CONSUMER_SECRET",
-        "X_ACCESS_TOKEN",
-        "X_ACCESS_TOKEN_SECRET",
-    )
-    credentials = {name: os.environ.get(name) for name in names}
-    missing = [name for name, value in credentials.items() if not value]
-    if missing:
-        raise RuntimeError("Missing X API credentials: " + ", ".join(missing))
-
-    client = tweepy.Client(
-        consumer_key=credentials["X_CONSUMER_KEY"],
-        consumer_secret=credentials["X_CONSUMER_SECRET"],
-        access_token=credentials["X_ACCESS_TOKEN"],
-        access_token_secret=credentials["X_ACCESS_TOKEN_SECRET"],
-        wait_on_rate_limit=True,
-    )
+    load_dotenv(env_file, override=False)
+    auth_mode = os.environ.get("X_AUTH_MODE", "oauth1").strip().lower()
+    if auth_mode == "oauth1":
+        names = (
+            "X_CONSUMER_KEY",
+            "X_CONSUMER_SECRET",
+            "X_ACCESS_TOKEN",
+            "X_ACCESS_TOKEN_SECRET",
+        )
+        credentials = {name: os.environ.get(name) for name in names}
+        missing = [name for name, value in credentials.items() if not value]
+        if missing:
+            raise RuntimeError("Missing X API credentials: " + ", ".join(missing))
+        client = tweepy.Client(
+            consumer_key=credentials["X_CONSUMER_KEY"],
+            consumer_secret=credentials["X_CONSUMER_SECRET"],
+            access_token=credentials["X_ACCESS_TOKEN"],
+            access_token_secret=credentials["X_ACCESS_TOKEN_SECRET"],
+            wait_on_rate_limit=True,
+        )
+    elif auth_mode == "oauth2":
+        access_token = os.environ.get("X_USER_ACCESS_TOKEN")
+        if not access_token:
+            raise RuntimeError("X_USER_ACCESS_TOKEN is required for OAuth 2.0 user authorization")
+        # This is a per-user OAuth 2.0 user access token, not an app-only bearer token.
+        client = tweepy.Client(bearer_token=access_token, wait_on_rate_limit=True)
+    else:
+        raise RuntimeError("X_AUTH_MODE must be oauth1 or oauth2")
     try:
         response = client.create_tweet(text=text)
     except tweepy.TweepyException as exc:
@@ -151,32 +160,54 @@ def main() -> int:
         help="Verified facts or project updates for the model to summarize",
     )
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Local Transformers model ID")
-    parser.add_argument(
+    publishing = parser.add_mutually_exclusive_group()
+    publishing.add_argument(
         "--post",
         action="store_true",
-        help="After showing the draft, ask for interactive confirmation and post it",
+        help="Show the draft, ask for interactive confirmation, then publish",
+    )
+    publishing.add_argument(
+        "--auto-post",
+        action="store_true",
+        help="Publish without a prompt; also requires X_AGENT_AUTOPUBLISH=true in the environment file",
+    )
+    parser.add_argument(
+        "--env-file",
+        type=Path,
+        default=ROOT / ".env.agent",
+        help="Private per-profile X API configuration file (default: repository .env.agent)",
     )
     args = parser.parse_args()
     if not args.topic.strip() or not args.context.strip():
         parser.error("--topic and --context must not be empty")
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(args.env_file, override=False)
+    except ImportError:
+        if args.post or args.auto_post:
+            print("Install apps/x-agent-bot/requirements.txt to enable X API publishing", file=sys.stderr)
+            return 1
+    if args.auto_post and os.environ.get("X_AGENT_AUTOPUBLISH", "").lower() != "true":
+        parser.error("--auto-post requires X_AGENT_AUTOPUBLISH=true in the selected environment file")
     if args.post and not sys.stdin.isatty():
         print("Interactive confirmation is required; no post was published.", file=sys.stderr)
         return 2
-    if args.post and already_posted_today(HISTORY):
+    if (args.post or args.auto_post) and already_posted_today(HISTORY):
         parser.error("A post is already recorded for today (UTC)")
 
     try:
         draft = generate_post(args.topic.strip(), args.context.strip(), args.model)
         print("\nDRAFT — review every claim before sharing\n")
         print(draft)
-        if not args.post:
-            print("\nDry run only. Re-run with --post to request explicit confirmation.")
+        if not args.post and not args.auto_post:
+            print("\nDry run only. Re-run with --post for confirmation or --auto-post with explicit opt-in.")
             return 0
-        confirmation = input("\nType POST to publish this exact text: ").strip()
-        if confirmation != "POST":
-            print("Not posted.")
-            return 0
-        post_id = publish_post(draft)
+        if args.post:
+            confirmation = input("\nType POST to publish this exact text: ").strip()
+            if confirmation != "POST":
+                print("Not posted.")
+                return 0
+        post_id = publish_post(draft, args.env_file)
         save_post_record(HISTORY, post_id, draft)
         print(f"Published: https://x.com/i/status/{post_id}")
         return 0

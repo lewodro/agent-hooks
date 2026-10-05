@@ -98,7 +98,7 @@ pnpm --filter @agent-hooks/cli start -- agent plan --objective "Review SOL-USDC 
 
 ## Standalone TypeScript toolkit
 
-Install the independently packable TypeScript toolkit with `npm install @agent-hooks/toolkit`. It separates Solana hook evaluation, agent learning, daily X drafting, and treasury proposal review into import paths documented in [`packages/toolkit/README.md`](packages/toolkit/README.md). The X workflow requires a human approval step; treasury APIs create bounded proposals and record review decisions but do not hold keys or sign transfers. The package is configured for public npm distribution, but has not yet been published.
+Install the independently packable TypeScript toolkit with `npm install @agent-hooks/toolkit`. It separates Solana hook evaluation, agent learning, daily X drafting, and chain-qualified treasury proposal review into import paths documented in [`packages/toolkit/README.md`](packages/toolkit/README.md). The toolkit workflow requires a human approval step; treasury proposals can describe Solana, Bitcoin, or Ethereum transfers but do not hold keys or sign/broadcast transactions. The local Python X publisher supports either OAuth 1.0a or OAuth 2.0 user authorization and keeps unattended publishing behind an explicit per-profile opt-in. The package is configured for public npm distribution, but has not yet been published.
 
 To wire experience storage, implement the `ExperienceStore` interface and pass it to `AgentBrain`:
 
@@ -127,7 +127,7 @@ Start Harbor as an off-chain research and reporting assistant paired with the pr
 
 Treat X content as attributed context rather than protocol state. An X post must never directly change a live composition, and the X-facing worker should not have a Solana signing key. The X API credentials and posting identity must be supplied by the project owner when the integration is built. See [the Harbor architecture and rollout](docs/first-agent.md).
 
-The initial local X workflow is in [`apps/x-agent-bot/agent_x.py`](apps/x-agent-bot/agent_x.py): it uses Qwen 2.5 0.5B via Transformers for local drafts and Tweepy for optional X API publishing. It is dry-run by default, accepts only supplied context, requires interactive confirmation to publish, and has no wallet or treasury key access. See the [local X agent tutorial](internal-digest/x_agent_tutorial.md). The React [XAgentChatbox preview](apps/web/components/XAgentChatbox.tsx) simulates local prompts; it does not connect to X or a wallet. This is a component-only workspace package, not a reconstructed site or router.
+The initial local X workflow is in [`apps/x-agent-bot/agent_x.py`](apps/x-agent-bot/agent_x.py): it uses Qwen 2.5 0.5B via Transformers for local drafts and Tweepy for optional X API publishing. It is dry-run by default, accepts only supplied context, offers interactive confirmation by default, and permits unattended daily posting only when both `--auto-post` and `X_AGENT_AUTOPUBLISH=true` are configured for that user's profile. OAuth 1.0a and OAuth 2.0 user authorization are supported; app-only X tokens are not suitable for posting. It has no wallet or treasury key access. See the [local X agent tutorial](internal-digest/x_agent_tutorial.md). The React [XAgentChatbox preview](apps/web/components/XAgentChatbox.tsx) simulates local prompts; it does not connect to X or a wallet. This is a component-only workspace package, not a reconstructed site or router.
 
 ## Development status
 
