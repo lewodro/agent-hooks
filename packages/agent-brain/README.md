@@ -8,6 +8,17 @@ Rewards must be finite and include a `rewardUnit` (for example, `normalized_0_1`
 
 The storage interface is deliberately replaceable. Implementations should append idempotently by `Experience.id`, preserve the immutable record, and apply query filters (including `verifiedOnly`) before limiting results. Durable writes should happen before records are made available for retrieval.
 
+`PostgresExperienceStore` is a driver-neutral durable adapter. Pass it an application-owned PostgreSQL pool/client that implements `PostgreSqlExecutor`, then call `initialize()` from a controlled migration step. It creates an append-only JSONB table, query indexes, idempotent insert behavior, and rejects reuse of an experience ID with different content. The adapter does not open connections or load credentials. Its `verifiedOnly` SQL filter enforces the same caller-labeled chain status and transaction identity fields as `AgentBrain`; it does not cryptographically verify RPC evidence.
+
+```ts
+import { AgentBrain, PostgresExperienceStore, type PostgreSqlExecutor } from "@agent-hooks/agent-brain";
+
+declare const applicationPool: PostgreSqlExecutor;
+const store = new PostgresExperienceStore(applicationPool);
+await store.initialize(); // Prefer invoking this from a migration job.
+const brain = new AgentBrain(store);
+```
+
 `MemoryExperienceStore` is the included bounded in-process implementation for local development and tests. It defaults to 10,000 records, caps query results at 200, keeps records immutable, and evicts the oldest appended record when full. It is volatile: use a durable `ExperienceStore` implementation for production agents or any treasury-related workflow.
 
 `brain.subscribe(listener, options)` delivers each newly persisted experience to in-process consumers, with awaited delivery and a maximum of 64 listeners. This is a low-latency local fan-out primitive, not a cross-process event broker. If a listener fails, `observe()` throws `ExperienceNotificationError` after the record has already been stored; retry with the same ID and make consumers idempotent because delivery is at-least-once.
