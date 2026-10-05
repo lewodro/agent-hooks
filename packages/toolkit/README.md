@@ -50,7 +50,7 @@ const trace = engine.run({
 
 ## Self-improving agents and daily X workflow
 
-`MemoryExperienceStore` is a small in-memory example implementing `ExperienceStore`. Persist records in a durable store in real deployments. `LearningAgent` retrieves matching, attributed experiences and passes them to an application-provided planner. This is an experience feedback loop—not automatic model-weight training or a guarantee that future decisions improve.
+`MemoryExperienceStore` is a bounded in-memory example implementing `ExperienceStore`. It defaults to 10,000 records, caps retrieval at 200, deduplicates exact retries by experience ID, rejects conflicting IDs, and returns cloned snapshots. It is still volatile: persist records in a durable, encrypted store in real deployments. `LearningAgent` retrieves matching, attributed experiences and passes them to an application-provided planner. This is an experience feedback loop—not automatic model-weight training or a guarantee that future decisions improve.
 
 `DailyXWorkflow` lets an agent draft a daily update linked to the experience IDs it summarizes. A reviewer must approve before `publish()` is allowed. If no X publisher is configured, approved copy can be posted manually. Supply the model and X API integration from your application; credentials are never requested, stored, or included here.
 

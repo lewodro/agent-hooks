@@ -1,4 +1,5 @@
 import type { HookRun, SolanaLifecycleEvent } from "./solana.js";
+import { isDeepStrictEqual } from "node:util";
 
 export interface AgentExperience {
   id: string;
@@ -21,22 +22,68 @@ export interface ExperienceStore {
   search(query: ExperienceQuery): Promise<readonly AgentExperience[]>;
 }
 
-/** In-memory reference store. Replace with an encrypted, durable store in production. */
+export class ExperienceIdConflictError extends Error {
+  constructor(public readonly experienceId: string) {
+    super(`Experience ${experienceId} already exists with different content`);
+    this.name = "ExperienceIdConflictError";
+  }
+}
+
+/**
+ * Bounded in-memory reference store for local development. Appends are
+ * idempotent by experience ID and return immutable snapshots. Replace with an
+ * encrypted, durable store in production.
+ */
 export class MemoryExperienceStore implements ExperienceStore {
-  private readonly records: AgentExperience[] = [];
+  private readonly records = new Map<string, AgentExperience>();
+
+  constructor(private readonly maxRecords = 10_000) {
+    if (!Number.isSafeInteger(maxRecords) || maxRecords < 1 || maxRecords > 1_000_000) {
+      throw new RangeError("maxRecords must be a safe integer between 1 and 1000000");
+    }
+  }
 
   async append(experience: AgentExperience): Promise<void> {
-    this.records.push(structuredClone(experience));
+    validateExperience(experience);
+    const existing = this.records.get(experience.id);
+    if (existing) {
+      if (isDeepStrictEqual(existing, experience)) return;
+      throw new ExperienceIdConflictError(experience.id);
+    }
+    this.records.set(experience.id, structuredClone(experience));
+    if (this.records.size > this.maxRecords) {
+      const oldest = this.records.keys().next();
+      if (!oldest.done) this.records.delete(oldest.value);
+    }
   }
 
   async search(query: ExperienceQuery): Promise<readonly AgentExperience[]> {
-    const matches = this.records.filter((record) =>
+    const requestedLimit = query.limit ?? 20;
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 200)
+      : 20;
+    const matches = [...this.records.values()].filter((record) =>
       (query.kind === undefined || record.event.kind === query.kind) &&
       (query.programId === undefined || record.event.programId === query.programId) &&
       (query.tags === undefined || query.tags.every((tag) => record.tags.includes(tag))),
     );
-    return matches.slice(-Math.max(1, query.limit ?? 20)).reverse().map((item) => structuredClone(item));
+    return matches
+      .sort((left, right) => right.recordedAt - left.recordedAt)
+      .slice(0, limit)
+      .map((item) => structuredClone(item));
   }
+}
+
+function validateExperience(experience: AgentExperience): void {
+  if (!experience.id.trim()) throw new TypeError("Experience id is required");
+  if (!Number.isFinite(experience.recordedAt) || experience.recordedAt < 0) {
+    throw new TypeError("Experience recordedAt must be a non-negative finite timestamp");
+  }
+  if (!experience.outcome.label.trim()) throw new TypeError("Experience outcome label is required");
+  if (experience.outcome.reward !== undefined && !Number.isFinite(experience.outcome.reward)) {
+    throw new TypeError("Experience outcome reward must be finite when present");
+  }
+  if (experience.tags.some((tag) => !tag.trim())) throw new TypeError("Experience tags must not contain empty values");
 }
 
 export interface AgentProposal<T = unknown> {
