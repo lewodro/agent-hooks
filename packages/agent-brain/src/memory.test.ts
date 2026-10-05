@@ -4,6 +4,7 @@ import test from "node:test";
 import type { LifecycleEvent } from "@agent-hooks/sdk";
 import {
   AgentBrain,
+  ExperienceNotificationError,
   type Experience,
   type ExperienceQuery,
   type ExperienceStore,
@@ -99,6 +100,58 @@ test("verified-only recall filters to caller-marked confirmed chain evidence", a
 
   const records = await brain.recall({ verifiedOnly: true, limit: 5 });
   assert.deepEqual(records.map((record) => record.id), [confirmed.id]);
+});
+
+test("live subscribers receive durable records and can opt into verified-only feedback", async () => {
+  const store = new TestStore();
+  const brain = new AgentBrain(store);
+  const allEvents: string[] = [];
+  const confirmedEvents: string[] = [];
+  const unsubscribeAll = brain.subscribe((record) => {
+    assert.ok(store.records.some((stored) => stored.id === record.id));
+    allEvents.push(record.id);
+  });
+  const unsubscribeVerified = brain.subscribe(
+    (record) => {
+      confirmedEvents.push(record.id);
+    },
+    { verifiedOnly: true },
+  );
+
+  const simulated = await brain.observe({ event: event(), feedback, tags: [] });
+  const confirmed = await brain.observe({
+    event: event(),
+    feedback,
+    tags: [],
+    evidence: {
+      channel: "chain",
+      status: "finalized",
+      network: "solana-mainnet",
+      transactionId: "signature-2",
+      slot: 124,
+    },
+  });
+  unsubscribeAll();
+  unsubscribeVerified();
+
+  assert.deepEqual(allEvents, [simulated.id, confirmed.id]);
+  assert.deepEqual(confirmedEvents, [confirmed.id]);
+});
+
+test("subscriber failures report an error after the experience is stored", async () => {
+  const store = new TestStore();
+  const brain = new AgentBrain(store);
+  brain.subscribe(() => {
+    throw new Error("planner queue offline");
+  });
+
+  await assert.rejects(
+    brain.observe({ id: "retry-me", event: event(), feedback, tags: [] }),
+    (error: unknown) =>
+      error instanceof ExperienceNotificationError &&
+      error.experienceId === "retry-me" &&
+      store.records.some((record) => record.id === "retry-me"),
+  );
 });
 
 test("rejects malformed rewards and unidentifiable confirmed evidence", async () => {

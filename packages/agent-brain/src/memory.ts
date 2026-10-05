@@ -73,8 +73,43 @@ export interface ExperienceStore {
   query(query: ExperienceQuery): Promise<Experience[]>;
 }
 
+export interface ExperienceSubscriptionOptions {
+  /** Deliver only records labeled confirmed/finalized by a trusted chain observer. */
+  verifiedOnly?: boolean;
+}
+
+export type ExperienceListener = (experience: Experience) => void | Promise<void>;
+
+/** The record is already durable when notification fails; retry with the same ID. */
+export class ExperienceNotificationError extends AggregateError {
+  constructor(
+    public readonly experienceId: string,
+    errors: readonly unknown[],
+  ) {
+    super(errors, `experience ${experienceId} was stored but one or more subscribers failed`);
+    this.name = "ExperienceNotificationError";
+  }
+}
+
 export class AgentBrain {
+  private readonly subscribers = new Map<ExperienceListener, ExperienceSubscriptionOptions>();
+
   constructor(private readonly store: ExperienceStore) {}
+
+  /**
+   * Subscribe to new durable experiences in this process. Delivery is awaited,
+   * bounded to 64 listeners, and at-least-once when callers retry failed notifications.
+   */
+  subscribe(
+    listener: ExperienceListener,
+    options: ExperienceSubscriptionOptions = {},
+  ): () => void {
+    if (this.subscribers.size >= 64 && !this.subscribers.has(listener)) {
+      throw new RangeError("AgentBrain supports at most 64 active subscribers");
+    }
+    this.subscribers.set(listener, { ...options });
+    return () => this.subscribers.delete(listener);
+  }
 
   async observe(input: Omit<Experience, "schemaVersion" | "id" | "observedAt" | "evidence" | "trace"> & {
     id?: string;
@@ -126,6 +161,7 @@ export class AgentBrain {
       tags: [...new Set(input.tags.map((tag) => tag.trim()).filter(Boolean))],
     });
     await this.store.append(experience);
+    await this.notifySubscribers(experience);
     return experience;
   }
 
@@ -139,6 +175,18 @@ export class AgentBrain {
     return query.verifiedOnly
       ? records.filter((record) => isMarkedVerifiedChainOutcome(record.evidence)).slice(0, limit)
       : records;
+  }
+
+  private async notifySubscribers(experience: Experience): Promise<void> {
+    const notifications = [...this.subscribers].map(async ([listener, options]) => {
+      if (options.verifiedOnly && !isMarkedVerifiedChainOutcome(experience.evidence)) return;
+      await listener(experience);
+    });
+    const results = await Promise.allSettled(notifications);
+    const errors = results.flatMap((result) =>
+      result.status === "rejected" ? [result.reason] : [],
+    );
+    if (errors.length > 0) throw new ExperienceNotificationError(experience.id, errors);
   }
 }
 

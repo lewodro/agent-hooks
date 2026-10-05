@@ -37,7 +37,7 @@ flowchart LR
     F -->|operator-approved version| B
 ```
 
-`agent-brain` supplies a storage boundary and experience retrieval API. It does not train a model by itself: deployments choose their event store, retrieval strategy, reward definition, and model provider. This lets the open source community connect different agent stacks and share reusable hook programs and learning systems. Keep model inference and memory retrieval off the transaction-critical path; hooks that directly gate an action should be deterministic, bounded, and testable.
+`agent-brain` supplies a storage boundary, provenance labels, per-hook trace memory, retrieval API, and low-latency in-process subscriptions for newly persisted outcomes. It does not train a model or verify RPC data by itself: deployments choose their event store, trusted chain observer, reward definition, retrieval strategy, and model provider. This lets the open source community connect different agent stacks and share reusable hook programs and learning systems. Keep model inference and memory retrieval off the transaction-critical path; hooks that directly gate an action should be deterministic, bounded, and testable.
 
 ## How hooks work
 

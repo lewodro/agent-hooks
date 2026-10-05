@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "pnpm build && node --test dist/memory.test.js"
+    "test": "tsc -p tsconfig.json && node --test dist/memory.test.js"
   },
   "dependencies": {
     "@agent-hooks/sdk": "workspace:*"
