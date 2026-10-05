@@ -16,7 +16,7 @@ describe("agent_hooks_executor", () => {
 
   it("derives the program id from declare_id! in lib.rs", () => {
     expect(program.programId.toBase58()).to.equal(
-      "5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD",
+      "11111111111111111111111111111111",
     );
   });
 

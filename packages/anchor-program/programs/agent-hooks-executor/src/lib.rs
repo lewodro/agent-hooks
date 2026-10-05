@@ -6,7 +6,8 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD");
+// Replace with the keypair-derived program address before deployment.
+declare_id!("11111111111111111111111111111111");
 
 pub mod errors;
 pub mod state;

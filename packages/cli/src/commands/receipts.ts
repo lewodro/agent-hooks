@@ -2,7 +2,6 @@ import { Command } from "commander";
 import kleur from "kleur";
 import { Connection, PublicKey } from "@solana/web3.js";
 
-const AGENT_HOOKS_EXECUTOR_ID = "5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD";
 
 const EVENT_KIND_LABEL: Record<number, string> = {
   0: "beforeDeposit",
@@ -123,7 +122,8 @@ export function receiptsCommand(): Command {
       "RPC endpoint",
       "https://api.mainnet-beta.solana.com",
     )
-    .action(async (opts: { signature?: string; rpc: string }) => {
+    .requiredOption("--program-id <address>", "deployed Agent Hooks executor program ID")
+    .action(async (opts: { signature?: string; rpc: string; programId: string }) => {
       if (!opts.signature) {
         console.error(
           kleur.red("error:") +
@@ -162,7 +162,7 @@ export function receiptsCommand(): Command {
             : "(unknown)"
         }`,
       );
-      console.log(`  executor        ${AGENT_HOOKS_EXECUTOR_ID}`);
+      console.log(`  executor        ${opts.programId}`);
       if (receipt.event_kind !== undefined) {
         console.log(
           `  event           ${EVENT_KIND_LABEL[receipt.event_kind] ?? "?"} (kind=${receipt.event_kind})`,

@@ -14,14 +14,14 @@ import {
 
 import type { Composition } from "./composition.js";
 
-export const AGENT_HOOKS_EXECUTOR_ID = new PublicKey(
-  "5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD",
-);
+/** Placeholder only. Supply the deployed executor ID explicitly in production. */
+export const DEFAULT_AGENT_HOOKS_EXECUTOR_ID = PublicKey.default;
 
 export interface ExecutorClientOptions {
   rpcEndpoint: string;
   payer: Signer;
   idl: Idl;
+  programId?: PublicKey;
 }
 
 const ADAPTER_BYTE = {
@@ -35,6 +35,7 @@ export type AdapterName = keyof typeof ADAPTER_BYTE;
 export class ExecutorClient {
   readonly program: Program;
   readonly provider: AnchorProvider;
+  readonly programId: PublicKey;
 
   constructor(opts: ExecutorClientOptions) {
     const connection = new Connection(opts.rpcEndpoint, "confirmed");
@@ -53,27 +54,28 @@ export class ExecutorClient {
     this.provider = new AnchorProvider(connection, wallet as never, {
       commitment: "confirmed",
     });
-    this.program = new Program(opts.idl, AGENT_HOOKS_EXECUTOR_ID, this.provider);
+    this.programId = opts.programId ?? DEFAULT_AGENT_HOOKS_EXECUTOR_ID;
+    this.program = new Program(opts.idl, this.programId, this.provider);
   }
 
   poolPda(market: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("pool"), market.toBuffer()],
-      AGENT_HOOKS_EXECUTOR_ID,
+      this.programId,
     );
   }
 
   compositionPda(pool: PublicKey, slotIndex: number): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("composition"), pool.toBuffer(), Buffer.from([slotIndex])],
-      AGENT_HOOKS_EXECUTOR_ID,
+      this.programId,
     );
   }
 
   listingPda(hookProgram: PublicKey): [PublicKey, number] {
     return PublicKey.findProgramAddressSync(
       [Buffer.from("listing"), hookProgram.toBuffer()],
-      AGENT_HOOKS_EXECUTOR_ID,
+      this.programId,
     );
   }
 

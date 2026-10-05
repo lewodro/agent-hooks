@@ -48,7 +48,7 @@ Each adapter is a small TypeScript package that wraps the protocol's existing SD
 
 ## Executor at the core
 
-`packages/anchor-program/programs/agent-hooks-executor` is the Anchor 0.31 program. Compositions live in PDAs keyed by `(pool, slot_index)`, so a pool can have up to eight slot indices and each slot can carry up to eight hooks. Pool authorities install and update Compositions. The executor emits `CompositionExecuted` events that the indexer in `apps/explorer` reads.
+`packages/anchor-program/programs/agent-hooks-executor` is the Anchor 0.31 program. Compositions live in PDAs keyed by `(pool, slot_index)`, so a pool can have up to eight slot indices and each slot can carry up to eight hooks. Pool authorities install and update Compositions. The executor emits `CompositionExecuted` events for external indexers to consume.
 
 ## Why hook flags live in PDAs, not in the program address
 

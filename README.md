@@ -1,28 +1,22 @@
 # AGENT HOOKS
 
-> Tie your loans. A composable hook framework for Marginfi v2, Kamino Lend, and Solend lifecycle events on Solana.
+> Policy-bound lifecycle hooks for Solana lending protocols and AI-assisted operations.
 
-[![Site](https://img.shields.io/badge/site-agent-hooks.dev-D4AF37?style=flat-square)](https://agent-hooks.dev)
-[![Docs](https://img.shields.io/badge/docs-agent-hooks.dev%2Fdocs-D4AF37?style=flat-square)](https://agent-hooks.dev/docs)
-[![X](https://img.shields.io/badge/X-%40agent__hooks-3D2817?style=flat-square)](https://x.com/agent_hooks)
-[![Build](https://img.shields.io/badge/build-passing-7CB07A?style=flat-square)](#)
+[![Build](https://img.shields.io/badge/build-local--verification--required-5BC0EB?style=flat-square)](#development-status)
 [![License](https://img.shields.io/badge/license-Apache--2.0-D4AF37?style=flat-square)](LICENSE)
 [![Anchor](https://img.shields.io/badge/Anchor-0.31-9D6BFF?style=flat-square)](https://www.anchor-lang.com)
 [![Rust](https://img.shields.io/badge/Rust-1.79-E63946?style=flat-square)](https://www.rust-lang.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-5BC0EB?style=flat-square)](https://www.typescriptlang.org)
-[![Solana](https://img.shields.io/badge/Solana-devnet-FFD976?style=flat-square)](https://solana.com)
-[![Program](https://img.shields.io/badge/devnet%20program-5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD-00FFE5?style=flat-square)](https://explorer.solana.com/address/5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD?cluster=devnet)
+[![Solana](https://img.shields.io/badge/Solana-program--ID--required-FFD976?style=flat-square)](https://solana.com)
 
-## Live
+## Development status
 
 | Resource | Value |
 |---------|-------|
-| Site | [agent-hooks.dev](https://agent-hooks.dev) |
-| Executor program (devnet) | `5yNMqcyZsGQJk4xvw4jjvoRBSnGs8mgramEa3HQe5faD` |
-| Initial deploy tx | [`3MSW…dG4j`](https://explorer.solana.com/tx/3MSWvHsCqZ2aUTQeyqwEBAAUr8zeH2vUtGLM6HfLRjYgSxwRKwro4UyDGrQX7jgAfkja437mFs4Lk8RiyWKYdG4j?cluster=devnet) |
-| IDL | [`idl/agent_hooks_executor.json`](idl/agent_hooks_executor.json) |
+| Executor program | Not deployed — generate and configure a program ID before deployment. |
+| IDL | [`idl/agent_hooks_executor.json`](idl/agent_hooks_executor.json) (placeholder address) |
 | Anchor | 0.31.1 |
-| Mainnet | not deployed yet — operator-driven via `agent-hooks deploy --cluster mainnet` |
+| Mainnet | Not deployed — operator-driven via `agent-hooks deploy --cluster mainnet` |
 
 AGENT HOOKS is a Solana-first hook framework for lending: an Anchor 0.31 executor program plus a runtime, three adapters (Marginfi v2, Kamino Lend, Solend), a six-hook standard library, an SDK, a CLI, and a VS Code extension. Pool operators bind a list of hooks (a Composition) to a pool and the on-chain executor runs them at every lifecycle event. Its agent control plane lets AI systems create policy-checked, simulation-only proposals; it never grants them wallet or deployment authority.
 
@@ -92,10 +86,7 @@ packages/
   sdk-ts/             TypeScript SDK — Composition builder, ExecutorClient, browser simulator
   cli/                @agent-hooks/cli — create, list, simulate, deploy plan, GitHub Action scaffold
   agent-runtime/      Provider-neutral AI proposal contract, policy validation, and approval guardrails
-  vscode-extension/   VS Code extension — knot diagram, inline simulation, deploy plan
-apps/
-  web/                Next.js 14 + Three.js workshop landing, Hook Designer, Marketplace, Docs
-  explorer/           On-chain explorer for compositions and listings
+  vscode-extension/   VS Code extension — composition diagram, inline simulation, deploy plan
 docs/
   architecture.md     The runtime / executor / adapter rings
   hooks-spec.md       Lifecycle events, flags bitmap, side-effect ABI
@@ -105,10 +96,9 @@ docs/
 ## Quick start
 
 ```bash
-git clone https://github.com/agent-hooks/agent-hooks
 cd agent-hooks
 pnpm install
-pnpm dev          # serve apps/web
+pnpm build
 cargo build       # build the Rust crates
 anchor build      # build the Anchor program
 ```
