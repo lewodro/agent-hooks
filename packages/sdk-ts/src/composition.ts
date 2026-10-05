@@ -27,6 +27,12 @@ export const HOOK_FLAGS = {
   MutatesRate: 1 << 11,
 } as const;
 
+export const MAX_HOOKS_PER_COMPOSITION = 8;
+export const MAX_COMPOSITION_SLOT_INDEX = 7;
+export const MAX_HOOK_PRIORITY = 0xffff;
+const LIFECYCLE_FLAG_MASK = 0x00ff;
+const SUPPORTED_HOOK_FLAG_MASK = 0x0fff;
+
 export type HookFlagName = keyof typeof HOOK_FLAGS;
 
 export function flagsFrom(names: HookFlagName[]): HookFlagBits {
@@ -48,14 +54,41 @@ export function eventToFlag(kind: LifecycleEventKind): number {
   }
 }
 
+/** Validate the portion of a hook entry serialized into the Anchor registry. */
+export function validateHookSpec(spec: HookSpec): void {
+  if (!spec.name.trim()) throw new TypeError("hook name must not be empty");
+  if (!spec.programId.trim()) throw new TypeError("hook programId must not be empty");
+  if (!Number.isSafeInteger(spec.priority) || spec.priority < 0 || spec.priority > MAX_HOOK_PRIORITY) {
+    throw new RangeError(`hook priority must be an integer between 0 and ${MAX_HOOK_PRIORITY}`);
+  }
+  const flags = spec.flags.bits;
+  if (!Number.isSafeInteger(flags) || flags < 0 || flags > SUPPORTED_HOOK_FLAG_MASK) {
+    throw new RangeError("hook flags contain unsupported bits");
+  }
+  if ((flags & LIFECYCLE_FLAG_MASK) === 0) {
+    throw new TypeError("hook flags must include at least one lifecycle flag");
+  }
+}
+
+/** The Anchor composition PDA uses one byte for the slot index. */
+export function validateCompositionSlotIndex(slotIndex: number): void {
+  if (!Number.isSafeInteger(slotIndex) || slotIndex < 0 || slotIndex > MAX_COMPOSITION_SLOT_INDEX) {
+    throw new RangeError(`composition slotIndex must be an integer between 0 and ${MAX_COMPOSITION_SLOT_INDEX}`);
+  }
+}
+
 export class Composition {
   private entries: HookSpec[] = [];
 
   add(spec: HookSpec): this {
-    if (this.entries.length >= 8) {
-      throw new Error("Composition is full (max 8 hooks per pool slot)");
+    if (this.entries.length >= MAX_HOOKS_PER_COMPOSITION) {
+      throw new Error(`Composition is full (max ${MAX_HOOKS_PER_COMPOSITION} hooks per pool slot)`);
     }
-    this.entries.push(spec);
+    validateHookSpec(spec);
+    if (this.entries.some((entry) => entry.priority === spec.priority)) {
+      throw new Error(`hook priority ${spec.priority} is already used in this composition`);
+    }
+    this.entries.push({ ...spec, flags: { bits: spec.flags.bits } });
     this.entries.sort((a, b) => a.priority - b.priority);
     return this;
   }

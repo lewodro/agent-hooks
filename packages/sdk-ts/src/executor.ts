@@ -12,7 +12,7 @@ import {
   type Signer,
 } from "@solana/web3.js";
 
-import type { Composition } from "./composition.js";
+import { validateCompositionSlotIndex, type Composition } from "./composition.js";
 
 /** Placeholder only. Supply the deployed executor ID explicitly in production. */
 export const DEFAULT_AGENT_HOOKS_EXECUTOR_ID = PublicKey.default;
@@ -69,6 +69,7 @@ export class ExecutorClient {
   }
 
   compositionPda(pool: PublicKey, slotIndex: number): [PublicKey, number] {
+    validateCompositionSlotIndex(slotIndex);
     return PublicKey.findProgramAddressSync(
       [Buffer.from("composition"), pool.toBuffer(), Buffer.from([slotIndex])],
       this.programId,
@@ -106,6 +107,7 @@ export class ExecutorClient {
     slotIndex: number;
     composition: Composition;
   }): Promise<string> {
+    validateCompositionSlotIndex(args.slotIndex);
     const [pool] = this.poolPda(args.market);
     const [composition] = this.compositionPda(pool, args.slotIndex);
     const entries = args.composition.hooks().map((h) => ({

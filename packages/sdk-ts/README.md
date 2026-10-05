@@ -41,6 +41,8 @@ const composition = new Composition()
   }));
 ```
 
+The builder matches the current Anchor registry limits: a composition holds at most eight hooks, each uses a unique `u16` priority, every hook declares at least one lifecycle bit, and registry slot indexes are `0` through `7`. Invalid entries fail locally before a transaction is built. The registry is still an eligibility-receipt prototype and does not CPI into listed hook programs.
+
 ## Simulate
 
 ```ts
