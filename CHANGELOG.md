@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.2.0 — Agent Hooks rename (unreleased)
+## 0.2.0 — Agent Hooks unreleased
 
-- Established Agent Hooks as an independent repository and renamed packages, the command-line binary, Anchor program, and IDL.
+- Established Agent Hooks as an independent repository and added packages, the command-line binary, Anchor program, and IDL.
 - Removed inherited deployment, domain, and program-address claims; every deployment now requires an explicitly configured program ID.
 - Added the policy-bound `@agent-hooks/agent-runtime` for auditable, simulation-only AI proposals.
 - Added pnpm workspace, strict TypeScript base configuration, and Turbo task definitions.
