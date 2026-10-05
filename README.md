@@ -96,6 +96,12 @@ await brain.observe({
 const priorOutcomes = await brain.recall({ adapter: event.adapter, kind: event.kind });
 ```
 
+## First agent: Harbor, paired with X
+
+Start Harbor as an off-chain research and reporting assistant paired with the project's X account. It watches configured public X sources for hook and launch reports, stores source IDs and links as evidence, joins those reports with verified on-chain events, recalls similar outcomes from `agent-brain`, and drafts policy changes through `agent-runtime`. It simulates each proposal, then queues it for an operator. After a run is reviewed, Harbor can publish the result and evidence links on X.
+
+Treat X content as attributed context rather than protocol state. An X post must never directly change a live composition, and the X-facing worker should not have a Solana signing key. The X API credentials and posting identity must be supplied by the project owner when the integration is built. See [the Harbor architecture and rollout](docs/first-agent.md).
+
 ## Development status
 
 The project is a development codebase. The production domain is intended to be `agenthooks.io`; it is a placeholder until a site is deployed. The Anchor program ID in this repository is a placeholder and is not a deployed Agent Hooks address. Configure a generated program ID before building or deploying on-chain artifacts. See [deployment notes](docs/deployment.md) and [security assumptions](docs/security.md).
