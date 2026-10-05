@@ -5,7 +5,7 @@ Agent Hooks is a development prototype. The runtime and simulator contain determ
 ## Transaction authority
 
 - `agent-runtime` creates and validates proposals. It does not have wallet or transaction-signing code.
-- `agent-brain` stores observations behind an application-provided `ExperienceStore`; deployments are responsible for protecting the store and validating its data.
+- `agent-brain` stores observations behind an `ExperienceStore`; its PostgreSQL adapter receives the host's configured query client and never reads credentials. Deployments are responsible for access control, encryption, retention, backups, and validation. Chain evidence is a caller-reported label, not cryptographic verification.
 - `ExecutorClient` accepts an RPC endpoint and signer. Any application that constructs it can submit transactions with that signer, so keep it outside model prompts and agent tools that do not need transaction authority.
 - The CLI `deploy` command prints a generic plan and does not deploy, sign, or verify an operator-approved keypair. Operators must independently inspect the program ID, cluster, wallet, and balance before any deployment.
 - X access should use a separate read/post identity. Never share an X credential or Solana key with the on-chain executor. X content is untrusted evidence and must not directly authorize a composition change.

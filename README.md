@@ -61,7 +61,7 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 | --- | --- | --- |
 | `@agent-hooks/sdk` (`packages/sdk-ts`) | TypeScript orchestration: compose hooks, simulate, and build executor instructions | Adapters, Anchor IDL, CLI, agent-brain |
 | `hook-runtime` (`packages/hook-runtime`) | Rust lifecycle event model, deterministic hook composition, traces, and simulation | Hook library and on-chain integrations |
-| `agent-brain` (`packages/agent-brain`) | Experience memory interface: append observations and recall prior outcomes; no model training included | SDK events and agent planners |
+| `agent-brain` (`packages/agent-brain`) | Experience memory interface with bounded local and PostgreSQL stores, provenance labels, traces, and subscriptions; no model training included | SDK events and agent planners |
 | `anchor-program` (`packages/anchor-program`) | Anchor 0.31 registry prototype plus `agent-hooks-policy` slippage/cooldown CPI gate example | Solana programs and SDK clients |
 | `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals, policy validation, and content-bound operator approvals | Brains, simulators, CLI, and operator approval flows |
 | `@agent-hooks/toolkit` (`packages/toolkit`) | Standalone TypeScript hooks, experience memory, X workflow, and treasury review primitives | Independent agent applications; no required runtime dependencies |
