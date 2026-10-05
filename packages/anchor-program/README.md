@@ -12,7 +12,9 @@ The declared program ID is a deterministic local-development placeholder, not a 
 
 ## `agent-hooks-executor`
 
-The registry prototype stores `Composition` PDAs and checks hook eligibility at lifecycle events.
+The registry prototype stores `Composition` PDAs. It accepts at most eight slots (indices `0..7`) per pool and at most eight hooks per slot. Registry installs reject duplicate priorities, hooks with no lifecycle flag, and unknown flag bits; entries are stored in ascending priority order. Marketplace listings require the referenced hook account to be executable. Composition entries are not yet required to have a marketplace listing.
+
+`run_composition` is currently a public eligibility-receipt instruction, not an authenticated adapter callback. Its `caller` account is unchecked and does not prove the event came from a protocol. Anyone can submit a claimed event and cause eligibility receipts to be emitted; these events must not be used as verified action outcomes. The instruction does not CPI into hook programs or enforce decisions/side effects.
 
 ## Instructions
 
@@ -21,15 +23,15 @@ The registry prototype stores `Composition` PDAs and checks hook eligibility at 
 | `register_pool(adapter, bump)` | Bind a Marginfi / Kamino / Solend market to a `Pool` PDA |
 | `install_composition(slot_index, entries)` | Write up to eight hook entries to a `Composition` PDA |
 | `update_composition(entries)` | Replace the entries on an existing composition |
-| `run_composition(event_kind, owner, adapter, payload)` | Invoked by the adapter; returns a `RunReceipt` |
-| `publish_hook(flags, manifest_uri, bump)` | List a hook program in the marketplace; the flags bitmap becomes the on-chain manifest |
+| `run_composition(event_kind, owner, adapter, payload)` | Publicly emits a placeholder eligibility receipt and returns eligible/skipped counts |
+| `publish_hook(flags, manifest_uri, bump)` | List an executable hook program in the marketplace; the flags bitmap becomes the on-chain manifest |
 
 ## Accounts
 
 | Account | Seeds | Stores |
 |--------|-------|--------|
 | `Pool` | `["pool", market]` | authority, market, adapter byte, composition_count |
-| `Composition` | `["composition", pool, slot_index]` | up to 8 `HookEntry { hook_program, priority, flags }` |
+| `Composition` | `["composition", pool, slot_index]`, where `slot_index < 8` | up to 8 sorted `HookEntry { hook_program, priority, flags }` |
 | `HookListing` | `["listing", hook_program]` | author, flags, manifest URI (≤200 bytes) |
 
 ## Build
@@ -42,7 +44,7 @@ The executor's program id in `declare_id!` is a placeholder. Replace it before d
 
 ## Test
 
-The mocha tests in `tests/` need a local validator with the three lending programs cloned. The `Anchor.toml` at the repo root configures them.
+`cargo test -p agent-hooks-executor` runs the registry validation unit tests. The Mocha integration tests in `tests/` need a local validator; they currently cover program ID and pool registration, not hook CPI or downstream protocol enforcement. The Anchor config declares local protocol clones for future integration work.
 
 ```
 anchor test

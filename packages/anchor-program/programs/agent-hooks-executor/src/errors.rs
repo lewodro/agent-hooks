@@ -34,4 +34,16 @@ pub enum HookExecutorError {
 
     #[msg("Composition entries must each carry a unique priority value.")]
     DuplicatePriority,
+
+    #[msg("A pool may install at most eight compositions.")]
+    TooManyCompositions,
+
+    #[msg("Composition slot index must be in the range 0..8.")]
+    InvalidCompositionSlot,
+
+    #[msg("Hook flags contain unsupported bits.")]
+    UnsupportedHookFlags,
+
+    #[msg("Hook flags must declare at least one lifecycle event.")]
+    MissingLifecycleFlags,
 }

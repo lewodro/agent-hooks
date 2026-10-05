@@ -1,8 +1,8 @@
 //! Agent Hooks Hook Executor — on-chain composition runner.
 //!
 //! Stores Composition PDAs (a list of registered hook program IDs + priorities + flags),
-//! and exposes instructions that lending pool operators call from their
-//! beforeBorrow / beforeLiquidate / afterDeposit hooks.
+//! and exposes registry instructions plus a public eligibility-receipt prototype.
+//! It is not automatically invoked by lending protocols and does not CPI hooks.
 
 use anchor_lang::prelude::*;
 
@@ -16,7 +16,10 @@ use errors::HookExecutorError;
 use state::{Composition, HookEntry, HookFlagsBitmap, Pool};
 
 pub const MAX_HOOKS_PER_COMPOSITION: usize = 8;
+pub const MAX_COMPOSITIONS_PER_POOL: u32 = 8;
 pub const MAX_KEEPERS: usize = 16;
+const LIFECYCLE_FLAGS_MASK: u16 = 0x00ff;
+const SUPPORTED_HOOK_FLAGS_MASK: u16 = 0x0fff;
 
 #[program]
 pub mod agent_hooks_executor {
@@ -24,11 +27,7 @@ pub mod agent_hooks_executor {
 
     /// Register a lending pool with the executor. The pool authority controls
     /// which compositions may run against it.
-    pub fn register_pool(
-        ctx: Context<RegisterPool>,
-        adapter: u8,
-        bump: u8,
-    ) -> Result<()> {
+    pub fn register_pool(ctx: Context<RegisterPool>, adapter: u8, bump: u8) -> Result<()> {
         require!(adapter <= 2, HookExecutorError::UnknownAdapter);
         let pool = &mut ctx.accounts.pool;
         pool.authority = ctx.accounts.authority.key();
@@ -51,20 +50,17 @@ pub mod agent_hooks_executor {
         slot_index: u8,
         entries: Vec<HookEntry>,
     ) -> Result<()> {
+        let mut entries = entries;
+        validate_and_sort_entries(&mut entries)?;
         require!(
-            entries.len() <= MAX_HOOKS_PER_COMPOSITION,
-            HookExecutorError::TooManyHooks
+            slot_index < MAX_COMPOSITIONS_PER_POOL as u8,
+            HookExecutorError::InvalidCompositionSlot
         );
-        require!(!entries.is_empty(), HookExecutorError::EmptyComposition);
-        // v0.1.1 — two compositions can't claim the same priority slot; the fold
-        // walks priorities in order and ambiguous ties were silently coalescing.
-        let mut seen = [false; (u8::MAX as usize) + 1];
-        for entry in &entries {
-            let p = entry.priority as usize;
-            require!(!seen[p], HookExecutorError::DuplicatePriority);
-            seen[p] = true;
-        }
         let pool = &mut ctx.accounts.pool;
+        require!(
+            pool.composition_count < MAX_COMPOSITIONS_PER_POOL,
+            HookExecutorError::TooManyCompositions
+        );
         require_keys_eq!(
             pool.authority,
             ctx.accounts.authority.key(),
@@ -91,19 +87,13 @@ pub mod agent_hooks_executor {
         ctx: Context<UpdateComposition>,
         entries: Vec<HookEntry>,
     ) -> Result<()> {
-        require!(
-            entries.len() <= MAX_HOOKS_PER_COMPOSITION,
-            HookExecutorError::TooManyHooks
-        );
-        require!(!entries.is_empty(), HookExecutorError::EmptyComposition);
-        // v0.1.1 — same priority-uniqueness guard applied to updates.
-        let mut seen = [false; (u8::MAX as usize) + 1];
-        for entry in &entries {
-            let p = entry.priority as usize;
-            require!(!seen[p], HookExecutorError::DuplicatePriority);
-            seen[p] = true;
-        }
+        let mut entries = entries;
+        validate_and_sort_entries(&mut entries)?;
         let composition = &mut ctx.accounts.composition;
+        require!(
+            composition.slot_index < MAX_COMPOSITIONS_PER_POOL as u8,
+            HookExecutorError::InvalidCompositionSlot
+        );
         require_keys_eq!(
             ctx.accounts.pool.authority,
             ctx.accounts.authority.key(),
@@ -159,8 +149,8 @@ pub mod agent_hooks_executor {
                     hook_program: entry.hook_program,
                     priority: entry.priority,
                     flags_bits: entry.flags.bits,
-                    decision: 0,                // Accept (placeholder at executor layer)
-                    side_effect_kind: 0,         // none (hook program emits the actual side-effect)
+                    decision: 0,         // Accept (placeholder at executor layer)
+                    side_effect_kind: 0, // none (hook program emits the actual side-effect)
                     side_effect_payload: 0,
                     timestamp: now,
                 });
@@ -196,7 +186,7 @@ pub mod agent_hooks_executor {
         manifest_uri: String,
         bump: u8,
     ) -> Result<()> {
-        require!(flags != 0, HookExecutorError::EmptyFlags);
+        validate_hook_flags(flags)?;
         require!(
             manifest_uri.len() <= 200,
             HookExecutorError::ManifestUriTooLong
@@ -265,7 +255,7 @@ pub struct UpdateComposition<'info> {
 pub struct RunComposition<'info> {
     pub pool: Account<'info, Pool>,
     pub composition: Account<'info, Composition>,
-    /// CHECK: caller (lending adapter program) is verified by the adapter itself.
+    /// CHECK: untrusted caller metadata; this prototype does not authenticate the source.
     pub caller: UncheckedAccount<'info>,
 }
 
@@ -280,11 +270,76 @@ pub struct PublishHook<'info> {
         bump,
     )]
     pub listing: Account<'info, state::HookListing>,
-    /// CHECK: pointer to the deployed hook program.
+    /// CHECK: constrained to a deployed executable program.
+    #[account(executable)]
     pub hook_program: UncheckedAccount<'info>,
     #[account(mut)]
     pub author: Signer<'info>,
     pub system_program: Program<'info, System>,
+}
+
+fn validate_hook_flags(flags: u16) -> Result<()> {
+    require!(
+        flags & !SUPPORTED_HOOK_FLAGS_MASK == 0,
+        HookExecutorError::UnsupportedHookFlags
+    );
+    require!(
+        flags & LIFECYCLE_FLAGS_MASK != 0,
+        HookExecutorError::MissingLifecycleFlags
+    );
+    Ok(())
+}
+
+fn validate_and_sort_entries(entries: &mut [HookEntry]) -> Result<()> {
+    require!(!entries.is_empty(), HookExecutorError::EmptyComposition);
+    require!(
+        entries.len() <= MAX_HOOKS_PER_COMPOSITION,
+        HookExecutorError::TooManyHooks
+    );
+    for (index, entry) in entries.iter().enumerate() {
+        validate_hook_flags(entry.flags.bits)?;
+        require!(
+            !entries[..index]
+                .iter()
+                .any(|earlier| earlier.priority == entry.priority),
+            HookExecutorError::DuplicatePriority
+        );
+    }
+    entries.sort_by_key(|entry| entry.priority);
+    Ok(())
+}
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+
+    fn entry(priority: u16, flags: u16) -> HookEntry {
+        HookEntry {
+            hook_program: Pubkey::new_unique(),
+            priority,
+            flags: HookFlagsBitmap { bits: flags },
+        }
+    }
+
+    #[test]
+    fn composition_entries_are_sorted_and_accept_full_u16_priorities() {
+        let mut entries = vec![entry(60_000, 1 << 2), entry(2, 1 << 4)];
+        assert!(validate_and_sort_entries(&mut entries).is_ok());
+        assert_eq!(entries[0].priority, 2);
+        assert_eq!(entries[1].priority, 60_000);
+    }
+
+    #[test]
+    fn invalid_capability_bitmaps_and_priorities_are_rejected() {
+        assert!(validate_hook_flags(1 << 8).is_err());
+        assert!(validate_hook_flags((1 << 2) | (1 << 12)).is_err());
+        let mut duplicate_priorities = vec![entry(4, 1 << 2), entry(4, 1 << 4)];
+        assert!(validate_and_sort_entries(&mut duplicate_priorities).is_err());
+        let mut excessive_entries: Vec<HookEntry> = (0..=MAX_HOOKS_PER_COMPOSITION)
+            .map(|priority| entry(priority as u16, 1 << 2))
+            .collect();
+        assert!(validate_and_sort_entries(&mut excessive_entries).is_err());
+    }
 }
 
 #[event]
@@ -320,7 +375,6 @@ pub struct CompositionExecuted {
     pub hook_count_skipped: u8,
     pub timestamp: i64,
 }
-
 
 /// v0.1.3 — per-entry receipt. Emitted from inside run_composition for each
 /// entry whose declared flags cover the lifecycle event. The decision and
