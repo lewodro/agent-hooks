@@ -98,11 +98,13 @@ const proposal = treasury.propose({
   amount: 10_000_000n,
   rationale: "Example only: reviewed devnet test",
 });
+const reviewed = treasury.review(proposal.id, "approve", authenticatedOperator.id);
+// reviewed.reviewFingerprint must match the transfer content before the host's signer sees it.
 ```
 
 The queue is a proposal/review ledger only: it has no signing method, wallet connection, RPC client, or transaction broadcast. Its named reviewer field is an audit label—not authentication—and the in-memory limits are not durable enforcement. Before any live transfer, a host must independently authenticate reviewers, re-check limits against durable state, validate the chain-specific transaction, and hand it to an isolated multisig/hardware/MPC signing service. Do not give an LLM a seed phrase or unrestricted wallet key. Keep X posting credentials separate from treasury authority.
 
-The proposal queue is in memory; it is not a durable treasury ledger or an enforcement layer for actual wallet transfers. The host application must authenticate reviewers—the `reviewer` string is an audit label, not authentication. Production integrations must re-check limits against durable on-chain/accounting state immediately before their own signing flow.
+The proposal queue is in memory; it is not a durable treasury ledger or an enforcement layer for actual wallet transfers. Pending and approved proposals reserve daily capacity; rejected and cancelled proposals release it. A review records the fingerprint of the transfer content. The host application must authenticate reviewers—the `reviewer` string is an audit label, not authentication. Production integrations must re-check limits against durable on-chain/accounting state immediately before their own signing flow.
 
 ## License and status
 
