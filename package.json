@@ -2,7 +2,7 @@
   "name": "agent-hooks",
   "version": "0.1.0",
   "private": true,
-  "description": "AGENT HOOKS public mirror — Solana lending hooks framework. Tie your loans.",
+  "description": "Open source hook execution and experience framework for autonomous agents in digital worlds.",
   "workspaces": ["packages/*", "examples/*"],
   "scripts": {
     "build": "turbo build",
