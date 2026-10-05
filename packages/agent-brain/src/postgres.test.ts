@@ -62,12 +62,12 @@ test("PostgreSQL store initializes indexes and performs idempotent append", asyn
   const db = new FakePostgres();
   const store = new PostgresExperienceStore(db);
   await store.initialize();
-  assert.equal(db.calls.length, 5);
+  assert.equal(db.calls.length, 8);
   const item = sample();
   await store.append(item);
   await store.append({ ...item, tags: [...item.tags] });
   assert.equal(db.payloads.length, 1);
-  assert.match(db.calls[5]!.statement, /ON CONFLICT \(experience_id\) DO NOTHING/);
+  assert.match(db.calls[8]!.statement, /ON CONFLICT \(experience_id\) DO NOTHING/);
 });
 
 test("PostgreSQL store rejects the same ID with different record content", async () => {
@@ -86,13 +86,19 @@ test("PostgreSQL queries bind filters, cap results, and require chain evidence i
   const item = sample();
   await store.append(item);
   const query: ExperienceQuery = {
-    adapter: "solend", kind: "beforeBorrow", compositionId: "sol-usdc-v1", verifiedOnly: true, limit: 999,
+    adapter: "solend", kind: "beforeBorrow", compositionId: "sol-usdc-v1", outcome: "executed",
+    hookProgramId: "hook-a", tag: "solana", since: "2026-10-01T00:00:00.000Z",
+    verifiedOnly: true, limit: 999,
   };
   const found = await store.query(query);
   const statement = db.calls.at(-1)!;
   assert.deepEqual(found.map(({ id }) => id), [item.id]);
   assert.match(statement.statement, /evidence_status IN \('confirmed', 'finalized'\)/);
   assert.match(statement.statement, /transactionId/);
-  assert.deepEqual(statement.parameters, ["solend", "beforeBorrow", "sol-usdc-v1", 200]);
+  assert.match(statement.statement, /hookProgramIds/);
+  assert.match(statement.statement, /observed_at >=/);
+  assert.deepEqual(statement.parameters, [
+    "solend", "beforeBorrow", "sol-usdc-v1", "executed", "hook-a", "solana", "2026-10-01T00:00:00.000Z", 200,
+  ]);
   assert.equal(statement.statement.includes("sol-usdc-v1"), false, "untrusted filters are parameterized");
 });

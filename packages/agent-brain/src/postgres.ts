@@ -38,6 +38,9 @@ export class PostgresExperienceStore implements ExperienceStore {
     await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_observed_idx ON ${TABLE} (observed_at DESC, experience_id)`);
     await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_event_idx ON ${TABLE} (adapter, event_kind, observed_at DESC)`);
     await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_composition_idx ON ${TABLE} (composition_id, observed_at DESC)`);
+    await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_outcome_idx ON ${TABLE} ((payload #>> '{feedback,outcome}'), observed_at DESC)`);
+    await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_hook_ids_idx ON ${TABLE} USING GIN ((payload #> '{feedback,hookProgramIds}'))`);
+    await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_tags_idx ON ${TABLE} USING GIN ((payload -> 'tags'))`);
     await this.db.query(`CREATE INDEX IF NOT EXISTS ${TABLE}_evidence_idx ON ${TABLE} (evidence_channel, evidence_status, observed_at DESC)`);
   }
 
@@ -88,6 +91,29 @@ export class PostgresExperienceStore implements ExperienceStore {
     addFilter("adapter", query.adapter);
     addFilter("event_kind", query.kind);
     addFilter("composition_id", query.compositionId);
+    addFilter("payload #>> '{feedback,outcome}'", query.outcome);
+    const addJsonMembershipFilter = (expression: string, value: string | undefined): void => {
+      if (value === undefined) return;
+      parameters.push(value);
+      where.push(`(${expression}) ? $${parameters.length}`);
+    };
+    addJsonMembershipFilter("payload #> '{feedback,hookProgramIds}'", query.hookProgramId);
+    addJsonMembershipFilter("payload -> 'tags'", query.tag);
+    const since = query.since === undefined ? undefined : Date.parse(query.since);
+    const until = query.until === undefined ? undefined : Date.parse(query.until);
+    if (since !== undefined && !Number.isFinite(since)) throw new TypeError("query since must be a valid date string");
+    if (until !== undefined && !Number.isFinite(until)) throw new TypeError("query until must be a valid date string");
+    if (since !== undefined && until !== undefined && since > until) {
+      throw new RangeError("query since must be earlier than or equal to until");
+    }
+    if (query.since !== undefined) {
+      parameters.push(new Date(since!).toISOString());
+      where.push(`observed_at >= $${parameters.length}`);
+    }
+    if (query.until !== undefined) {
+      parameters.push(new Date(until!).toISOString());
+      where.push(`observed_at <= $${parameters.length}`);
+    }
     if (query.verifiedOnly) {
       where.push("evidence_channel = 'chain'");
       where.push("evidence_status IN ('confirmed', 'finalized')");

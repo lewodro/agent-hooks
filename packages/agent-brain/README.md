@@ -8,7 +8,7 @@ Rewards must be finite and include a `rewardUnit` (for example, `normalized_0_1`
 
 The storage interface is deliberately replaceable. Implementations should append idempotently by `Experience.id`, preserve the immutable record, and apply query filters (including `verifiedOnly`) before limiting results. Durable writes should happen before records are made available for retrieval.
 
-`PostgresExperienceStore` is a driver-neutral durable adapter. Pass it an application-owned PostgreSQL pool/client that implements `PostgreSqlExecutor`, then call `initialize()` from a controlled migration step. It creates an append-only JSONB table, query indexes, idempotent insert behavior, and rejects reuse of an experience ID with different content. The adapter does not open connections or load credentials. Its `verifiedOnly` SQL filter enforces the same caller-labeled chain status and transaction identity fields as `AgentBrain`; it does not cryptographically verify RPC evidence.
+`PostgresExperienceStore` is a driver-neutral durable adapter. Pass it an application-owned PostgreSQL pool/client that implements `PostgreSqlExecutor`, then call `initialize()` from a controlled migration step. It creates an append-only JSONB table, indexes event, composition, outcome, hook, and tag fields, and supports bounded idempotent inserts. Reusing an experience ID with different content is rejected. `recall()` can filter by adapter, event kind, composition, outcome, hook ID, tag, time window, and caller-labeled verified-chain status. The adapter does not open connections or load credentials. It does not cryptographically verify RPC evidence.
 
 ```ts
 import { AgentBrain, PostgresExperienceStore, type PostgreSqlExecutor } from "@agent-hooks/agent-brain";

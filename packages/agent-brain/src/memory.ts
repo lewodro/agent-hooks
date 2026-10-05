@@ -63,6 +63,11 @@ export interface ExperienceQuery {
   adapter?: LifecycleEvent["adapter"];
   kind?: LifecycleEvent["kind"];
   compositionId?: string;
+  outcome?: HookFeedback["outcome"];
+  hookProgramId?: string;
+  tag?: string;
+  since?: string;
+  until?: string;
   /** Require a caller-labeled confirmed/finalized chain record with transaction and block identity. */
   verifiedOnly?: boolean;
   limit?: number;
@@ -106,6 +111,7 @@ export class MemoryExperienceStore implements ExperienceStore {
   }
 
   async query(query: ExperienceQuery): Promise<Experience[]> {
+    const [since, until] = validateQueryWindow(query);
     const requestedLimit = query.limit ?? 20;
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 200)
@@ -115,6 +121,11 @@ export class MemoryExperienceStore implements ExperienceStore {
         (query.adapter === undefined || record.event.adapter === query.adapter) &&
         (query.kind === undefined || record.event.kind === query.kind) &&
         (query.compositionId === undefined || record.feedback.compositionId === query.compositionId) &&
+        (query.outcome === undefined || record.feedback.outcome === query.outcome) &&
+        (query.hookProgramId === undefined || record.feedback.hookProgramIds.includes(query.hookProgramId)) &&
+        (query.tag === undefined || record.tags.includes(query.tag)) &&
+        (since === undefined || Date.parse(record.observedAt) >= since) &&
+        (until === undefined || Date.parse(record.observedAt) <= until) &&
         (!query.verifiedOnly || isMarkedVerifiedChainOutcome(record.evidence)),
       )
       .sort((left, right) => right.observedAt.localeCompare(left.observedAt))
@@ -216,6 +227,7 @@ export class AgentBrain {
 
   /** Return prior feedback for a planner to use when proposing the next hook change. */
   async recall(query: ExperienceQuery = {}): Promise<Experience[]> {
+    validateQueryWindow(query);
     const requestedLimit = query.limit ?? 20;
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 200)
@@ -237,6 +249,17 @@ export class AgentBrain {
     );
     if (errors.length > 0) throw new ExperienceNotificationError(experience.id, errors);
   }
+}
+
+function validateQueryWindow(query: ExperienceQuery): [number | undefined, number | undefined] {
+  const since = query.since === undefined ? undefined : Date.parse(query.since);
+  const until = query.until === undefined ? undefined : Date.parse(query.until);
+  if (since !== undefined && !Number.isFinite(since)) throw new TypeError("query since must be a valid date string");
+  if (until !== undefined && !Number.isFinite(until)) throw new TypeError("query until must be a valid date string");
+  if (since !== undefined && until !== undefined && since > until) {
+    throw new RangeError("query since must be earlier than or equal to until");
+  }
+  return [since, until];
 }
 
 /** True only for evidence labeled as a confirmed/finalized chain result with identifiers. */

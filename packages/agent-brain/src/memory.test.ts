@@ -242,3 +242,28 @@ test("memory store rejects unsafe capacities", () => {
   assert.throws(() => new MemoryExperienceStore(0), /maxRecords/);
   assert.throws(() => new MemoryExperienceStore(Number.MAX_SAFE_INTEGER + 1), /maxRecords/);
 });
+
+test("recall filters by feedback, hook, tag, and observed time window", async () => {
+  const brain = new AgentBrain(new MemoryExperienceStore());
+  const older = await brain.observe({
+    id: "older",
+    observedAt: "2026-01-01T00:00:00.000Z",
+    event: event(),
+    feedback,
+    tags: ["solana", "liquidation"],
+    evidence: { channel: "simulation", status: "observed" },
+  });
+  const newer = await brain.observe({
+    id: "newer",
+    observedAt: "2026-02-01T00:00:00.000Z",
+    event: event(),
+    feedback: { ...feedback, outcome: "rejected", accepted: false },
+    tags: ["solana", "borrow"],
+  });
+
+  assert.deepEqual((await brain.recall({ outcome: "rejected", hookProgramId: "hook-a" })).map(({ id }) => id), [newer.id]);
+  assert.deepEqual((await brain.recall({ tag: "liquidation", until: "2026-01-15T00:00:00.000Z" })).map(({ id }) => id), [older.id]);
+  assert.deepEqual((await brain.recall({ since: "2026-01-15T00:00:00.000Z" })).map(({ id }) => id), [newer.id]);
+  await assert.rejects(brain.recall({ since: "bad-date" }), /since must be a valid date/);
+  await assert.rejects(brain.recall({ since: "2026-03-01", until: "2026-02-01" }), /earlier than or equal/);
+});
