@@ -1,6 +1,25 @@
 # Agent Hooks
 
-Agent Hooks is an open source, continuous execution and experience framework for autonomous agents in Solana, crypto, and other digital worlds. A hook is a small policy that runs at a defined action boundary: it can accept an event, reject it with a reason, or return a bounded side effect. Brains retain the event and its later outcome so agents can use prior experience when planning future launches and actions.
+![Build](https://github.com/lewodro/agent-hooks/actions/workflows/ci.yml/badge.svg?branch=main)
+![Anchor](https://img.shields.io/badge/Anchor-0.31.1-00E5FF)
+![License](https://img.shields.io/badge/license-MIT-00FF66)
+[![Domain](https://img.shields.io/badge/domain-agenthooks.io-1E293B)](https://agenthooks.io)
+![X agent](https://img.shields.io/badge/X%20agent-local%20prototype-1E293B)
+
+Agent Hooks is an open-source, real-time execution and experience framework for agents on Solana, crypto protocols, and other digital worlds. It separates **The Mind**—planning and learning from verified outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary.
+
+```text
+                    THE MIND (off-chain)
+ verified events ──> agent-brain ──> planner ──> simulate + policy
+       ▲                                              │
+       │ outcome feedback                   reviewed proposal
+       │                                              ▼
+       └──── receipts <── THE HOOK (Anchor CPI policy gate)
+                              │
+                              └── allow or reject the action
+```
+
+The loop is continuous: observe an event, evaluate deterministic guards, record the later outcome, retrieve relevant experience, and propose the next version. Model output is never itself an execution guardrail.
 
 The framework keeps execution, memory, and planning as separate interfaces. Protocol adapters normalize events; the SDK and Rust runtime compose, simulate, and evaluate hooks; the Anchor program provides an on-chain composition registry and an early eligibility executor; `agent-brain` stores event and outcome experience; and agent integrations create proposals through policy checks before an operator approves changes.
 
@@ -30,16 +49,18 @@ This is crucial for agents because it separates *what the agent proposes* from *
 
 ### What is implemented today
 
-The local Rust runtime and TypeScript simulator evaluate hook implementations. The current Anchor program is an early on-chain registry and eligibility prototype: `run_composition` checks the event and adapter, counts matching flags, and emits receipts. It does not yet CPI into deployed hook programs or apply their side effects; its per-hook receipt decision is a placeholder. The on-chain path needs CPI execution and end-to-end integration tests before it can be treated as a production hook executor.
+The Rust runtime and TypeScript simulator evaluate hooks locally. `agent-hooks-policy` is a functional Anchor 0.31 CPI gate example that checks quoted-output slippage and slot cooldown, with a pause switch and an executor-PDA authority check. The configured executor must call it immediately before its own state-mutating CPI and propagate rejection. It cannot constrain a protocol that does not integrate the gate.
+
+The separate `agent-hooks-executor` composition registry remains an early prototype: `run_composition` checks event/adapter eligibility and emits receipts, but it does not yet CPI into its registered hook programs. Its `HookRan` decision field remains a placeholder and must not be treated as an evaluated decision.
 
 ## Workspace packages
 
 | Package | Responsibility | Interfaces with |
 | --- | --- | --- |
-| `@agent-hooks/sdk` (`packages/sdk-ts`) | TypeScript composition builder, simulator, executor client, and hook helpers | Adapters, Anchor IDL, CLI, agent-brain |
-| `hook-runtime` (`packages/hook-runtime`) | Rust lifecycle types, deterministic hook composition, execution traces, and backtesting | Hook library and on-chain integration |
-| `anchor-program` (`packages/anchor-program`) | Anchor prototype for pool registration, composition storage, hook listings, eligibility checks, and receipts | SDK executor client and protocol integrations |
-| `@agent-hooks/agent-brain` (`packages/agent-brain`) | Append and query event/outcome experiences through a replaceable store interface | SDK `LifecycleEvent` types and agent planners |
+| `@agent-hooks/sdk` (`packages/sdk-ts`) | TypeScript orchestration: compose hooks, simulate, and build executor instructions | Adapters, Anchor IDL, CLI, agent-brain |
+| `hook-runtime` (`packages/hook-runtime`) | Rust lifecycle event model, deterministic hook composition, traces, and simulation | Hook library and on-chain integrations |
+| `agent-brain` (`packages/agent-brain`) | Experience memory interface: append observations and recall prior outcomes; no model training included | SDK events and agent planners |
+| `anchor-program` (`packages/anchor-program`) | Anchor 0.31 registry prototype plus `agent-hooks-policy` slippage/cooldown CPI gate example | Solana programs and SDK clients |
 | `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals and policy validation for agent plans | Brains, simulators, CLI, and operator approval flows |
 | `@agent-hooks/marginfi-adapter` | Marginfi event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/kamino-adapter` | Kamino Lend event and market normalization | SDK and hook-runtime |
@@ -51,7 +72,7 @@ The local Rust runtime and TypeScript simulator evaluate hook implementations. T
 
 1. An adapter emits a normalized `LifecycleEvent` for a protocol action.
 2. The SDK or Rust runtime matches hooks to that event, evaluates them in configured priority order, and records the decisions and side effects.
-3. The current Anchor prototype stores approved compositions, checks hook eligibility, and emits receipts. A CPI path that invokes hook programs still needs to be implemented before hook decisions execute on-chain.
+3. The registry prototype stores compositions and emits eligibility receipts; it does not invoke those listed hooks. The separate policy-gate example can enforce slippage/cooldown when an allowlisted executor actually calls it by CPI.
 4. An integration writes the event, composition identity, hook outcomes, reward/feedback, and optional tags to `AgentBrain.observe()`.
 5. Before planning the next launch, an agent calls `AgentBrain.recall()` for relevant prior outcomes, then simulates and validates its proposal.
 6. An authorized operator approves composition mutations and deployments.
@@ -106,6 +127,8 @@ Start Harbor as an off-chain research and reporting assistant paired with the pr
 
 Treat X content as attributed context rather than protocol state. An X post must never directly change a live composition, and the X-facing worker should not have a Solana signing key. The X API credentials and posting identity must be supplied by the project owner when the integration is built. See [the Harbor architecture and rollout](docs/first-agent.md).
 
+The initial local X workflow is in [`apps/x-agent-bot/agent_x.py`](apps/x-agent-bot/agent_x.py): it uses Qwen 2.5 0.5B via Transformers for local drafts and Tweepy for optional X API publishing. It is dry-run by default, accepts only supplied context, requires interactive confirmation to publish, and has no wallet or treasury key access. See the [local X agent tutorial](internal-digest/x_agent_tutorial.md). The React [XAgentChatbox preview](apps/web/components/XAgentChatbox.tsx) simulates local prompts; it does not connect to X or a wallet. This is a component-only workspace package, not a reconstructed site or router.
+
 ## Development status
 
 The project is a development codebase. The production domain is intended to be `agenthooks.io`; it is a placeholder until a site is deployed. The Anchor program ID in this repository is a placeholder and is not a deployed Agent Hooks address. Configure a generated program ID before building or deploying on-chain artifacts. See [deployment notes](docs/deployment.md) and [security assumptions](docs/security.md).
@@ -121,10 +144,14 @@ packages/
   anchor-program/    on-chain executor and registry
   sdk-ts/            TypeScript SDK and simulator
   toolkit/           standalone, packable TypeScript hooks + agent toolkit
+  anchor-program/
+    programs/agent-hooks-policy/ slippage/cooldown CPI gate example
   *-adapter/         protocol-specific event normalization
   cli/               command-line tooling
   vscode-extension/  editor designer and simulator
 docs/                architecture, deployment, hooks, and security
+apps/                local X bot and React prompt preview
+internal-digest/     tutorial; private run data is git-ignored
 examples/            example lending-pool compositions
 assets/              architecture, lifecycle, and hook diagrams
 ```

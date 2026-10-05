@@ -22,7 +22,8 @@ flowchart TB
       RT[Composition · ExecutionTrace · Simulator]
     end
     subgraph core [Executor · core]
-      EX{{Anchor 0.31 program}}
+      EX{{Anchor composition registry}}
+      GATE{{agent-hooks-policy CPI gate}}
       PDA1[(Pool PDA)]
       PDA2[(Composition PDA)]
       PDA3[(HookListing PDA)]
@@ -34,6 +35,7 @@ flowchart TB
     end
     A1 & A2 & A3 -- LifecycleEvent --> RT
     RT -- run_composition --> EX
+    RT -. integrated executor CPI .-> GATE
     EX --- PDA1
     EX --- PDA2
     EX --- PDA3
@@ -53,9 +55,11 @@ Each adapter is a small TypeScript package that wraps the protocol's existing SD
 
 ## Executor at the core
 
-`packages/anchor-program/programs/agent-hooks-executor` is the Anchor 0.31 program. Compositions live in PDAs keyed by `(pool, slot_index)`; a pool can have up to eight slots, with up to eight hooks in each slot. The pool authority installs and updates compositions.
+`packages/anchor-program/programs/agent-hooks-executor` is the Anchor 0.31 composition registry. Compositions live in PDAs keyed by `(pool, slot_index)`; a pool can have up to eight slots, with up to eight hooks in each slot. The pool authority installs and updates compositions.
 
-At present, `run_composition` validates the event kind, pool binding, adapter, and payload size. It counts entries whose declared flags match the event, then emits `HookRan` and `CompositionExecuted` receipts. The per-hook decision in `HookRan` is currently a placeholder. This instruction does not invoke hook programs or apply side effects. Actual hook evaluation currently happens in the Rust runtime and TypeScript simulator; CPI-based on-chain hook evaluation remains future work.
+At present, `run_composition` validates the event kind, pool binding, adapter, and payload size. It counts entries whose declared flags match the event, then emits `HookRan` and `CompositionExecuted` receipts. The per-hook decision in `HookRan` is currently a placeholder. This instruction does not invoke registered hook programs or apply side effects.
+
+`packages/anchor-program/programs/agent-hooks-policy` is a separately deployable Anchor 0.31 policy hook. It checks a quote/minimum-output slippage bound and slot cooldown, and it requires the configured executor program's signer PDA. A downstream execution program must CPI into the policy hook before its mutation, bind the checked values to the exact swap/action, and propagate errors. The sample program does not swap assets itself and cannot constrain programs that choose not to call it.
 
 ## Why hook flags live in PDAs, not in the program address
 
@@ -63,7 +67,7 @@ Uniswap v4 encodes hook flags in the contract address. That works on EVM because
 
 ## Agent control plane
 
-`packages/agent-runtime` gives AI agents a deliberately narrow integration surface: they can generate versioned proposals, attach assumptions and evidence, and request deterministic simulations. Policies reject unapproved or unsimulated mutations. This package has no wallet, private-key, transaction-submission, or deployment capability; an operator must separately review and execute any resulting composition change.
+`packages/agent-runtime` gives AI agents a deliberately narrow integration surface: they can generate versioned proposals, attach assumptions and evidence, and request deterministic simulations. Policies reject unapproved or unsimulated mutations. The local `apps/x-agent-bot/agent_x.py` uses Qwen 2.5 0.5B for an X draft; publishing is explicit and interactively confirmed. The bot has no Solana signer, private-key, transaction-submission, or deployment capability.
 
 ## Continuous experience loop
 

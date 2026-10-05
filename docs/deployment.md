@@ -1,6 +1,6 @@
 # Deployment
 
-Agent Hooks is not deployed to devnet or mainnet. The checked-in executor address is the Solana system-program address solely as a visible placeholder; it must never be used as a deployment target.
+Agent Hooks is not deployed to devnet or mainnet. The checked-in executor address is the Solana system-program address solely as a visible placeholder; it must never be used as a deployment target. The `agent-hooks-policy` address is also a local example placeholder, not a deployed program ID; generate a deployment keypair and update `declare_id!` and the relevant `Anchor.toml` entries together.
 
 ## Before deployment
 
