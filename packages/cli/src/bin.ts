@@ -13,7 +13,7 @@ const program = new Command();
 program
   .name("agent-hooks")
   .description(
-    "Agent Hooks — tie your loans. Create, simulate, and deploy Solana lending hooks.",
+    "Agent Hooks — create, simulate, and review Solana agent hooks.",
   )
   .version("0.1.2");
 

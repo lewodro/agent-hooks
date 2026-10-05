@@ -19,6 +19,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && chmod +x dist/bin.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test --import tsx src/**/*.test.ts",
     "start": "tsx src/bin.ts"
   },
   "dependencies": {
