@@ -8,17 +8,23 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/memory.test.js dist/postgres.test.js"
+    "test": "tsc -p tsconfig.json && node --test dist/memory.test.js dist/postgres.test.js",
+    "test:postgres": "tsc -p tsconfig.json && node --test dist/postgres.integration.test.js"
   },
   "dependencies": {
     "@agent-hooks/sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
     "typescript": "^5.7.2"
   }
 }

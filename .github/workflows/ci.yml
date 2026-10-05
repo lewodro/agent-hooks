@@ -8,6 +8,22 @@ jobs:
   node:
     name: TypeScript workspace
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: agent_hooks
+          POSTGRES_PASSWORD: agent_hooks
+          POSTGRES_DB: agent_hooks_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U agent_hooks -d agent_hooks_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      AGENT_HOOKS_TEST_DATABASE_URL: postgres://agent_hooks:agent_hooks@localhost:5432/agent_hooks_test
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6
@@ -20,6 +36,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
+      - name: exercise durable replay against PostgreSQL
+        run: pnpm --filter @agent-hooks/agent-brain test:postgres
       - run: pnpm typecheck
       - run: pnpm build
 
