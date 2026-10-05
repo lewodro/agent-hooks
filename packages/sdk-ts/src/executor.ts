@@ -55,7 +55,10 @@ export class ExecutorClient {
       commitment: "confirmed",
     });
     this.programId = opts.programId ?? DEFAULT_AGENT_HOOKS_EXECUTOR_ID;
-    this.program = new Program(opts.idl, this.programId, this.provider);
+    this.program = new Program(
+      { ...opts.idl, address: this.programId.toBase58() },
+      this.provider,
+    );
   }
 
   poolPda(market: PublicKey): [PublicKey, number] {
@@ -85,8 +88,8 @@ export class ExecutorClient {
     authority: PublicKey;
   }): Promise<string> {
     const [pool, bump] = this.poolPda(args.market);
-    const tx = await this.program.methods
-      .registerPool(ADAPTER_BYTE[args.adapter], bump)
+    const tx = await this.program.methods!
+      .registerPool!(ADAPTER_BYTE[args.adapter], bump)
       .accounts({
         pool,
         market: args.market,
@@ -110,8 +113,8 @@ export class ExecutorClient {
       priority: h.priority,
       flags: { bits: h.flags.bits },
     }));
-    const tx = await this.program.methods
-      .installComposition(args.slotIndex, entries)
+    const tx = await this.program.methods!
+      .installComposition!(args.slotIndex, entries)
       .accounts({
         pool,
         composition,

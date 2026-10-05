@@ -65,7 +65,11 @@ export function simulate(composition: Composition, events: LifecycleEvent[]): Ba
       }
       const decision = decideForHook(hook, event);
       if (decision.outcome === "rejected") {
-        entries.push({ hookName: hook.name, outcome: "rejected", reason: decision.reason });
+        entries.push({
+          hookName: hook.name,
+          outcome: "rejected",
+          ...(decision.reason === undefined ? {} : { reason: decision.reason }),
+        });
         rejected = decision.reason ?? `${hook.name} rejected the event`;
         if (event.kind === "beforeBorrow") report.borrowsRejected += 1;
         break;
@@ -73,7 +77,7 @@ export function simulate(composition: Composition, events: LifecycleEvent[]): Ba
       entries.push({
         hookName: hook.name,
         outcome: decision.sideEffect ? "accepted-with" : "accepted",
-        sideEffect: decision.sideEffect,
+        ...(decision.sideEffect === undefined ? {} : { sideEffect: decision.sideEffect }),
       });
       if (decision.sideEffect) {
         if (decision.sideEffect.kind === "override-max-ltv-bps") report.ltvOverrides += 1;

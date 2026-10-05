@@ -66,9 +66,9 @@ function parseExecutorLogs(logs: string[]): Partial<ParsedReceipt> {
     if (buf.length === COMP_EXEC_LEN) {
       out.composition = new PublicKey(buf.subarray(8, 40)).toBase58();
       out.pool = new PublicKey(buf.subarray(40, 72)).toBase58();
-      out.event_kind = buf[72];
-      out.hook_count_eligible = buf[106];
-      out.hook_count_skipped = buf[107];
+      out.event_kind = buf[72]!;
+      out.hook_count_eligible = buf[106]!;
+      out.hook_count_skipped = buf[107]!;
     } else if (buf.length === HOOK_RAN_LEN) {
       const hookProgram = new PublicKey(buf.subarray(8 + 32 + 32 + 1, 8 + 32 + 32 + 1 + 32)).toBase58();
       const off = 8 + 32 + 32 + 1 + 32;
@@ -90,7 +90,7 @@ function parseExecutorLogs(logs: string[]): Partial<ParsedReceipt> {
       if (!out.composition) {
         out.composition = new PublicKey(buf.subarray(8, 40)).toBase58();
         out.pool = new PublicKey(buf.subarray(40, 72)).toBase58();
-        out.event_kind = buf[72];
+        out.event_kind = buf[72]!;
       }
     }
   }
