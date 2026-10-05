@@ -1,6 +1,6 @@
 # Architecture
 
-Agent Hooks separates protocol adaptation, deterministic execution, experience memory, and agent planning. This lets agents learn from live feedback without coupling hook evaluation to a model provider.
+Agent Hooks is split into a deterministic hook plane and an off-chain agent control plane. Adapters normalize observations; the runtime validates, evaluates, and traces hooks; a protocol integration must enforce accepted decisions before mutating protocol state. Brains can retain those traces alongside later outcomes so planners can use operational history without becoming transaction authorities.
 
 ```mermaid
 %%{init: { "theme": "base", "themeVariables": {
@@ -12,63 +12,69 @@ Agent Hooks separates protocol adaptation, deterministic execution, experience m
   "tertiaryColor": "#050811",
   "fontFamily": "Space Mono, monospace"
 }} }%%
-flowchart TB
-    subgraph rim [Adapters · rim]
-      A1[Marginfi v2]
-      A2[Kamino Lend]
-      A3[Solend]
-    end
-    subgraph middle [Runtime · middle]
-      RT[Composition · ExecutionTrace · Simulator]
-    end
-    subgraph core [Executor · core]
-      EX{{Anchor composition registry}}
-      GATE{{agent-hooks-policy CPI gate}}
-      PDA1[(Pool PDA)]
-      PDA2[(Composition PDA)]
-      PDA3[(HookListing PDA)]
-    end
-    subgraph control [Agent control plane · off-chain]
-      BRAIN[agent-brain · experience store]
-      AG[Agent planner]
-      POLICY[Policy + human approval]
-    end
-    A1 & A2 & A3 -- LifecycleEvent --> RT
-    RT -- run_composition --> EX
-    RT -. integrated executor CPI .-> GATE
-    EX --- PDA1
-    EX --- PDA2
-    EX --- PDA3
-    EX -- receipt + outcome --> BRAIN
-    BRAIN -- retrieved experience --> AG
-    AG -- proposal only --> POLICY
-    POLICY -- approved composition --> RT
+flowchart LR
+  subgraph inputs [Observation inputs]
+    M[Marginfi adapter]
+    K[Kamino adapter]
+    S[Solend adapter]
+    HIST[Recorded events]
+  end
+  subgraph deterministic [Deterministic hook plane]
+    N[Normalized LifecycleEvent]
+    V[Freshness + field bounds]
+    C[Ordered composition evaluation]
+    T[ExecutionTrace + proposed side effects]
+  end
+  subgraph enforcement [Protocol enforcement · integration required]
+    P[Downstream protocol guard / CPI]
+    STATE[(Protocol state)]
+    REG[Anchor registry + eligibility receipts]
+  end
+  subgraph learning [Off-chain agent control plane]
+    B[agent-brain store]
+    PL[Planner / policy]
+    REVIEW[Simulation + operator approval]
+  end
+  M & K & S & HIST --> N --> V --> C --> T
+  T -. accepted proposal .-> P --> STATE
+  T -. consumer integration .-> B
+  T --> B --> PL --> REVIEW --> C
 ```
 
-## Adapters at the rim
+## Workspace layers
 
-Each adapter is a small TypeScript package that wraps the protocol's existing SDK and emits a normalised `LifecycleEvent`. The shape is identical across adapters so a Composition built against Marginfi can be replayed against Kamino without code changes (only configuration changes).
+| Layer | Current responsibility | Boundary |
+|---|---|---|
+| Protocol adapters | Read pool/account snapshots and normalize data to the shared `LifecycleEvent` shape. | Current adapters are read-oriented; they do not subscribe to and intercept every protocol lifecycle transaction. |
+| `@agent-hooks/sdk` | TypeScript event, composition, and simulator interfaces. | Its local simulator is not a protocol enforcement point. |
+| `hook-runtime` | Rust event validation, ordered hook evaluation, bounded side-effect proposals, audit traces, and historical simulation. | It evaluates local Rust `Hook` implementations; side effects are proposals until a host applies them. |
+| `agent-brain` | Storage interface for events and hook feedback; query prior experience for a planner. | No built-in durable database, automatic reward attribution, causal model, or model training. |
+| `agent-runtime` | Agent proposal, simulation, and approval boundaries. | Model outputs remain untrusted proposals and cannot sign or submit transactions. |
+| Anchor executor | Pool/composition registration, eligibility receipts, and hook listing metadata. | `run_composition` does not CPI into registered hook programs, enforce their decisions, or mutate downstream protocol state. |
+| Anchor policy example | A standalone policy instruction with bounded inputs and executor-PDA authorization. | A downstream protocol must call it before its own mutation and bind the checked values to that exact action; this sample is not itself a swap executor. |
 
-## Runtime in the middle
+## Deterministic evaluation path
 
-`packages/hook-runtime` (Rust) and `packages/sdk-ts/simulator.ts` (TypeScript) implement the same decision tree. The Composition is an ordered list of hook entries plus their priority and flags bitmap. The runtime checks each hook's flags against the event kind, runs the eligible ones in priority order, and either accumulates side effects or short-circuits on the first reject.
+An adapter or replay source produces a `LifecycleEvent`. A caller supplies a trusted `ExecutionContext.current_slot`; the runtime does not treat the event's own slot as the live clock. `EventValidationPolicy` bounds staleness, payload size, oracle observations, confidence, LTV, and basis-point fields. The host must authenticate source programs and oracle account ownership before constructing the normalized event: shape and range validation cannot prove provenance.
 
-## Executor at the core
+`Composition` orders up to eight local hooks by priority. Lifecycle flags decide whether a hook is called. The runtime enforces capability flags for rejection and side effects, checks LTV/rate/delay bounds, bounds instruction payloads, and fails closed when an oracle-dependent hook has no observations. An `ExecutionTrace` retains each hook result. If any hook rejects or returns an unauthorized/out-of-policy decision, the composition is rejected and executable side effects are cleared.
 
-`packages/anchor-program/programs/agent-hooks-executor` is the Anchor 0.31 composition registry. Compositions live in PDAs keyed by `(pool, slot_index)`; a pool can have up to eight slots, with up to eight hooks in each slot. The pool authority installs and updates compositions.
+The returned trace is evidence of local evaluation, not evidence that a chain transaction executed. A production protocol integration still needs an explicit trust path: validate the caller and accounts, invoke approved hook programs through bounded CPI interfaces, stop on rejection, and only then mutate protocol state. The current Anchor executor does not implement that path.
 
-At present, `run_composition` validates the event kind, pool binding, adapter, and payload size. It counts entries whose declared flags match the event, then emits `HookRan` and `CompositionExecuted` receipts. The per-hook decision in `HookRan` is currently a placeholder. This instruction does not invoke registered hook programs or apply side effects.
+## Experience feedback loop
 
-`packages/anchor-program/programs/agent-hooks-policy` is a separately deployable Anchor 0.31 policy hook. It checks a quote/minimum-output slippage bound and slot cooldown, and it requires the configured executor program's signer PDA. A downstream execution program must CPI into the policy hook before its mutation, bind the checked values to the exact swap/action, and propagate errors. The sample program does not swap assets itself and cannot constrain programs that choose not to call it.
+`agent-brain` accepts a normalized event and caller-supplied hook feedback. A consumer should keep simulation, operator judgment, submitted transactions, and confirmed/finalized outcomes distinguishable; only appropriately verified outcomes should inform a policy presented as on-chain performance. `AgentBrain.recall()` retrieves past records by event or composition for an off-chain planner. It does not train a model, establish causality, or prove that a prior decision caused an outcome.
 
-## Why hook flags live in PDAs, not in the program address
+```text
+observe → validate → evaluate hooks → preserve trace → protocol integration executes
+                                                     ↓
+                  later verified outcome → experience store → planner proposal
+                                                               ↓
+                                                 simulation + policy + approval
+```
 
-Uniswap v4 encodes hook flags in the contract address. That works on EVM because addresses are arbitrary. On Solana, addresses are ed25519-derived — forcing brute-force keypair search to embed bits would be hostile to hook authors. AGENT HOOKS stores the flag bitmap in a PDA the executor reads at install time, achieving the same guarantee without keypair gymnastics.
+## Solana-specific design
 
-## Agent control plane
+On EVM, Uniswap v4 can encode hook capabilities in contract-address bits. Solana addresses are derived from keys, so Agent Hooks stores declared flag bits in composition metadata rather than requiring hook authors to grind keypairs. Those bits are declarations, not a security boundary by themselves: the caller and executor must verify the registered program, account relationships, capabilities, and CPI result at the point of enforcement.
 
-`packages/agent-runtime` gives AI agents a deliberately narrow integration surface: they can generate versioned proposals, attach assumptions and evidence, and request deterministic simulations. Policies reject unapproved or unsimulated mutations. The local `apps/x-agent-bot/agent_x.py` uses Qwen 2.5 0.5B for an X draft; publishing is explicit and interactively confirmed. The bot has no Solana signer, private-key, transaction-submission, or deployment capability.
-
-## Continuous experience loop
-
-`LifecycleEvent` is the shared boundary between adapters, simulations, and the brain. An execution receipt and any later outcome feedback are stored with the event, hook IDs, and composition ID using `AgentBrain.observe()`. Later, `AgentBrain.recall()` returns prior experiences by adapter, event kind, or composition so a planner can form its next proposal. A store implementation may use an append-only database and optional similarity search; the package itself does not train a model or infer causality from correlation.
+The current Anchor executor is a registry/receipt prototype. Its events are useful for indexing eligibility but must not be interpreted as hook execution receipts. See [the hook specification](hooks-spec.md), [security notes](security.md), and [deployment status](deployment.md) before treating an example as production enforcement.

@@ -9,14 +9,16 @@
 Agent Hooks is an open-source, real-time execution and experience framework for agents on Solana, crypto protocols, and other digital worlds. It separates **The Mind**—planning and learning from verified outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary.
 
 ```text
-                    THE MIND (off-chain)
- verified events ──> agent-brain ──> planner ──> simulate + policy
+                THE MIND (off-chain)
+ verified outcomes ──> agent-brain ──> planner ──> simulate + policy
        ▲                                              │
-       │ outcome feedback                   reviewed proposal
+       │ later feedback                    reviewed proposal
        │                                              ▼
-       └──── receipts <── THE HOOK (Anchor CPI policy gate)
-                              │
-                              └── allow or reject the action
+       └──── host integration <── THE HOOK (deterministic runtime)
+                                       │
+                                       └── propose allow / reject / bounded effects
+
+ Today: Anchor registry records eligibility receipts; protocol hook CPI is not wired.
 ```
 
 The loop is continuous: observe an event, evaluate deterministic guards, record the later outcome, retrieve relevant experience, and propose the next version. Model output is never itself an execution guardrail.
@@ -28,8 +30,8 @@ The feedback loop is:
 ```mermaid
 flowchart LR
     A[Protocol adapter] -->|LifecycleEvent| B[SDK + hook-runtime]
-    B -->|decision and execution trace| C[Host boundary]
-    C -->|trace and later outcome| D[agent-brain]
+    B -->|decision and execution trace| C[Host integration]
+    C -. consumer records trace + later outcome .-> D[agent-brain]
     D -->|relevant experience| E[Agent planner]
     E -->|proposal| F[Policy + simulation]
     F -->|operator-approved version| B
@@ -39,7 +41,7 @@ flowchart LR
 
 ## How hooks work
 
-1. An adapter observes an action such as a deposit, borrow, repay, or liquidation and creates a normalized `LifecycleEvent` with protocol, position, market/oracle snapshot, and action payload.
+1. An adapter or replay source normalizes an observation of a deposit, borrow, repay, or liquidation into a `LifecycleEvent` with protocol, position, market/oracle snapshot, and action payload. The current adapters are read-oriented; they do not intercept every live protocol action.
 2. Each hook declares the lifecycle flags it supports. The runtime sorts hooks by priority and skips hooks that did not declare the event.
 3. Eligible hooks inspect the event and return `Accept`, `AcceptWith(side effect)`, or `Reject(reason)`. Rejection stops the composition; accepted side effects are collected for the host to apply.
 4. The host records the decision trace and later joins it with the real outcome, such as whether a position stayed healthy or a liquidation completed.
@@ -49,7 +51,7 @@ This is crucial for agents because it separates *what the agent proposes* from *
 
 ### What is implemented today
 
-The Rust runtime and TypeScript simulator evaluate hooks locally. `agent-hooks-policy` is a functional Anchor 0.31 CPI gate example that checks quoted-output slippage and slot cooldown, with a pause switch and an executor-PDA authority check. The configured executor must call it immediately before its own state-mutating CPI and propagate rejection. It cannot constrain a protocol that does not integrate the gate.
+The Rust runtime and TypeScript simulator evaluate hooks locally. `agent-hooks-policy` is a functional Anchor 0.31 CPI gate example that checks quoted-output slippage and slot cooldown, with a pause switch and an executor-PDA authority check. The configured downstream executor must call it immediately before its own state-mutating CPI and propagate rejection. It cannot constrain a protocol that does not integrate the gate.
 
 The separate `agent-hooks-executor` composition registry remains an early prototype: `run_composition` checks event/adapter eligibility and emits receipts, but it does not yet CPI into its registered hook programs. Its `HookRan` decision field remains a placeholder and must not be treated as an evaluated decision.
 

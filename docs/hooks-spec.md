@@ -1,11 +1,13 @@
-# Hook spec
+# Hook specification
+
+This document describes the local Rust runtime contract and separates it from on-chain behavior that is not implemented yet. In the current Anchor executor, registering a hook stores metadata; `run_composition` counts lifecycle-eligible entries and emits eligibility receipts. It does not invoke hook programs, enforce their results, or apply their side effects.
 
 ## Lifecycle events
 
-Eight discrete events. Each maps to one bit in the flags bitmap.
+Eight lifecycle points map to flag bits:
 
 | Event | Flag bit |
-|-------|---------|
+|---|---:|
 | `beforeDeposit` | `1 << 0` |
 | `afterDeposit` | `1 << 1` |
 | `beforeBorrow` | `1 << 2` |
@@ -15,20 +17,20 @@ Eight discrete events. Each maps to one bit in the flags bitmap.
 | `beforeLiquidate` | `1 << 6` |
 | `afterLiquidate` | `1 << 7` |
 
-The four "capability" bits sit above the lifecycle bits.
+Capability declarations occupy the upper bits:
 
-| Capability | Flag bit |
-|-----------|---------|
-| `MutatePayload` | `1 << 8` |
-| `MayReject` | `1 << 9` |
-| `UsesOracle` | `1 << 10` |
-| `MutatesRate` | `1 << 11` |
+| Capability | Flag bit | Rust runtime enforcement |
+|---|---:|---|
+| `MutatePayload` | `1 << 8` | Required for LTV overrides, liquidation delays, and emitted instructions. |
+| `MayReject` | `1 << 9` | Required when returning `Reject`; an undeclared rejection is converted to a policy rejection. |
+| `UsesOracle` | `1 << 10` | An eligible hook fails closed if the event has no oracle observations. The runtime does not authenticate their source. |
+| `MutatesRate` | `1 << 11` | Required for rate overrides. |
 
-A hook that lacks the matching lifecycle bit is skipped at runtime — no CPI happens. A hook that lacks the matching capability bit but tries to use it at runtime is rejected by the executor.
+Flags are metadata and must not be trusted as authorization by themselves. A host or future on-chain executor must bind the declared capabilities to an allowlisted program and validate the program's result.
 
-## Decision shapes
+## Hook decisions and trace
 
-A hook returns one of three decisions:
+Local Rust hooks return one of:
 
 ```rust
 pub enum HookDecision {
@@ -38,9 +40,9 @@ pub enum HookDecision {
 }
 ```
 
-`Accept` flows through. `Reject` halts the lifecycle and surfaces the reason. `AcceptWith` enqueues a bounded side effect.
+`Composition::evaluate` runs eligible hooks in priority order. It validates event freshness and bounds against a host-supplied current slot, records each hook result, and rejects out-of-policy decisions. Configurable limits cover LTV, delay, and instruction payload size; rates and basis-point values are capped at 10,000. On rejection, the audit trace is retained and the executable side-effect list is cleared. The runtime result remains a local decision until a protocol integration enforces it.
 
-## Side-effect ABI
+## Side-effect proposals
 
 ```rust
 pub enum SideEffect {
@@ -51,12 +53,14 @@ pub enum SideEffect {
 }
 ```
 
-The adapter consumes these in order. `OverrideMaxLtvBps` clamps the position's max LTV for the duration of the call. `OverrideRateBps` overrides the accrued interest rate. `DelayLiquidationSlots` pushes the actual liquidation by N slots — used by both `TimeTriggerLiq` and `AntiMEVLiq`. `EmitInstruction` queues a CPI for the adapter to relay (e.g. a Drift perp short for `AutoHedge`).
+The runtime validates capability and configured bounds before including a proposal in an accepted trace. It does not relay emitted instructions, change a borrow rate, delay a real liquidation, or mutate lending protocol state. Those actions require a downstream protocol-specific host/CPI integration that binds the values to the exact operation and aborts if a hook rejects.
 
-## Composition rules
+## Composition limits and on-chain status
 
-- A Composition contains up to eight hook entries.
-- Entries are sorted by `priority` (lower runs first).
-- Each entry stores its hook's `program_id`, `priority`, and a copy of the hook's flag bitmap.
-- The executor refuses to run a composition slot whose declared flags don't include the event kind for the call.
-- A single `Reject` halts the composition; downstream side effects are dropped.
+- The local Rust composition accepts one to eight hooks and sorts by ascending priority; lower values run first.
+- A local hook without the matching lifecycle flag is recorded as skipped.
+- The Anchor registry stores hook program IDs, priorities, and flag bits in PDAs and limits pool compositions.
+- Anchor `run_composition` currently emits eligibility receipts only. `HookRan.decision` is a placeholder, not an observed hook decision.
+- No generic hook CPI ABI or downstream protocol mutation guard is implemented in this repository yet.
+
+See [architecture](architecture.md) for package ownership and [security](security.md) for trust boundaries.
