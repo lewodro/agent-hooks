@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { LifecycleEvent } from "@agent-hooks/sdk";
+import type { LifecycleEvent } from "@agent-hooks/adapter-core";
 import {
   AgentBrain,
   ExperienceIdConflictError,

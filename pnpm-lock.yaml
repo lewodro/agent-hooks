@@ -72,9 +72,9 @@ importers:
 
   packages/agent-brain:
     dependencies:
-      '@agent-hooks/sdk':
+      '@agent-hooks/adapter-core':
         specifier: workspace:*
-        version: link:../sdk-ts
+        version: link:../adapter-core
     devDependencies:
       '@types/node':
         specifier: ^22.10.5

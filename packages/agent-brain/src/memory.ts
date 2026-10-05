@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { LifecycleEvent } from "@agent-hooks/sdk";
+import type { LifecycleEvent } from "@agent-hooks/adapter-core";
 
 export type EvidenceChannel = "simulation" | "operator" | "chain" | "unknown";
 export type EvidenceStatus =

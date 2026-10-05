@@ -19,7 +19,7 @@
     "test:postgres": "tsc -p tsconfig.json && node --test dist/postgres.integration.test.js"
   },
   "dependencies": {
-    "@agent-hooks/sdk": "workspace:*"
+    "@agent-hooks/adapter-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
