@@ -30,7 +30,14 @@
       "import": "./dist/treasury.js"
     }
   },
-  "files": ["dist", "README.md", "LICENSE"],
+  "files": [
+    "dist/index.js", "dist/index.d.ts",
+    "dist/solana.js", "dist/solana.d.ts",
+    "dist/agents.js", "dist/agents.d.ts",
+    "dist/x.js", "dist/x.d.ts",
+    "dist/treasury.js", "dist/treasury.d.ts",
+    "README.md", "LICENSE"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
