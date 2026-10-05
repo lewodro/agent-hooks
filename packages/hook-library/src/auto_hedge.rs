@@ -2,9 +2,9 @@
 //! Knot: double helix. Two strands wound together — the deposit and the perp.
 
 use agent_hooks_runtime::{
-    Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta,
     event::LifecycleEventKind,
     hook::{InstructionKind, SideEffect},
+    Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta,
 };
 
 pub struct AutoHedge {
@@ -60,8 +60,7 @@ impl Hook for AutoHedge {
         if price >= self.trigger_price_e8 {
             return HookDecision::Accept;
         }
-        let notional = (ctx.event.position.collateral_amount as u128)
-            .saturating_mul(price as u128)
+        let notional = (ctx.event.position.collateral_amount as u128).saturating_mul(price as u128)
             / 1e8 as u128;
         let hedge_size = notional.saturating_mul(self.hedge_ratio_bps as u128) / 10_000u128;
         let mut payload = Vec::with_capacity(80);
@@ -117,7 +116,11 @@ mod tests {
     fn accepts_when_above_trigger() {
         let h = AutoHedge::new(8_000_000_000, 5_000, [42; 32]);
         let e = evt(10_000_000_000);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert_eq!(h.evaluate(&ctx), HookDecision::Accept);
     }
 
@@ -125,7 +128,11 @@ mod tests {
     fn emits_drift_short_below_trigger() {
         let h = AutoHedge::new(8_000_000_000, 5_000, [42; 32]);
         let e = evt(6_000_000_000);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         let decision = h.evaluate(&ctx);
         match decision {
             HookDecision::AcceptWith(SideEffect::EmitInstruction { kind, payload }) => {

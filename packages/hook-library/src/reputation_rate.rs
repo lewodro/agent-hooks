@@ -4,10 +4,8 @@
 use std::sync::Arc;
 
 use agent_hooks_runtime::{
-    Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta,
-    event::LifecycleEventKind,
-    hook::SideEffect,
-    permission::ReputationProvider,
+    event::LifecycleEventKind, hook::SideEffect, permission::ReputationProvider, Hook, HookContext,
+    HookDecision, HookFlag, HookFlags, HookMeta,
 };
 
 pub struct ReputationRate {
@@ -102,7 +100,11 @@ mod tests {
         let rep = Arc::new(MemoryReputation::new());
         let h = ReputationRate::new(rep, 1_200, 600);
         let e = evt([8; 32]);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert_eq!(
             h.evaluate(&ctx),
             HookDecision::AcceptWith(SideEffect::OverrideRateBps(1_200))
@@ -115,7 +117,11 @@ mod tests {
         rep.record([5; 32], 10_000, 100);
         let h = ReputationRate::new(rep, 1_200, 600);
         let e = evt([5; 32]);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert_eq!(
             h.evaluate(&ctx),
             HookDecision::AcceptWith(SideEffect::OverrideRateBps(600))

@@ -2,9 +2,8 @@
 //! Knot: lock knot. Used for KYC pools or institutional venues.
 
 use agent_hooks_runtime::{
-    Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta,
-    event::LifecycleEventKind,
-    permission::PermissionGate,
+    event::LifecycleEventKind, permission::PermissionGate, Hook, HookContext, HookDecision,
+    HookFlag, HookFlags, HookMeta,
 };
 
 pub struct WhitelistBorrow {
@@ -86,7 +85,11 @@ mod tests {
         let me = [1u8; 32];
         let h = WhitelistBorrow::new(PermissionGate::new([me]));
         let e = evt(me);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert_eq!(h.evaluate(&ctx), HookDecision::Accept);
     }
 
@@ -96,7 +99,11 @@ mod tests {
         let you = [2u8; 32];
         let h = WhitelistBorrow::new(PermissionGate::new([me]));
         let e = evt(you);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert!(matches!(h.evaluate(&ctx), HookDecision::Reject(_)));
     }
 }

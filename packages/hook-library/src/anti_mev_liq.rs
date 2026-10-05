@@ -8,9 +8,8 @@
 use std::collections::HashSet;
 
 use agent_hooks_runtime::{
-    Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta,
-    event::LifecycleEventKind,
-    hook::SideEffect,
+    event::LifecycleEventKind, hook::SideEffect, Hook, HookContext, HookDecision, HookFlag,
+    HookFlags, HookMeta,
 };
 
 pub struct AntiMevLiq {
@@ -116,7 +115,11 @@ mod tests {
     fn delays_without_keeper() {
         let h = AntiMevLiq::new(3, HashSet::new());
         let e = evt(vec![]);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert_eq!(
             h.evaluate(&ctx),
             HookDecision::AcceptWith(SideEffect::DelayLiquidationSlots(3))
@@ -132,7 +135,11 @@ mod tests {
         let mut payload = vec![0u8; 32];
         payload.copy_from_slice(&stranger);
         let e = evt(payload);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert!(matches!(h.evaluate(&ctx), HookDecision::Reject(_)));
     }
 }
