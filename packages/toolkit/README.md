@@ -52,7 +52,7 @@ const trace = engine.run({
 
 `MemoryExperienceStore` is a bounded in-memory example implementing `ExperienceStore`. It defaults to 10,000 records, caps retrieval at 200, deduplicates exact retries by experience ID, rejects conflicting IDs, and returns cloned snapshots. It is still volatile: persist records in a durable, encrypted store in real deployments. `LearningAgent` retrieves matching, attributed experiences and passes them to an application-provided planner. This is an experience feedback loop—not automatic model-weight training or a guarantee that future decisions improve.
 
-`DailyXWorkflow` lets an agent draft a daily update linked to the experience IDs it summarizes. A reviewer must approve before `publish()` is allowed. If no X publisher is configured, approved copy can be posted manually. Supply the model and X API integration from your application; credentials are never requested, stored, or included here.
+`DailyXWorkflow` lets an agent draft one active UTC-dated update linked to the experience IDs it summarizes. Approval records an operator label and time; the host must authenticate that identity. The publisher receives a stable draft ID as its idempotency key. Concurrent publishes are blocked, and an ambiguous network failure moves the draft to `publish-unknown`, which must be reconciled with X before any retry. If no X publisher is configured, approved copy can be posted manually. Supply the model and X API integration from your application; credentials are never requested, stored, or included here.
 
 ```ts
 const dailyX = new DailyXWorkflow({
@@ -64,7 +64,7 @@ const dailyX = new DailyXWorkflow({
 
 const post = await dailyX.draft(new Date().toISOString().slice(0, 10), recentExperiences);
 // Present post.text and its sourceExperienceIds to a person for review.
-dailyX.approve(post.id);
+dailyX.approve(post.id, authenticatedOperator.id);
 // Without an XPublisher, export the approved copy for manual posting.
 ```
 
