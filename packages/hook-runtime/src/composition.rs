@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::event::LifecycleEvent;
-use crate::hook::{Hook, HookContext, HookDecision, HookMeta, SideEffect};
+use crate::event::{EventValidationError, EventValidationPolicy, ExecutionContext, LifecycleEvent};
+use crate::hook::{Hook, HookContext, HookDecision, HookFlag, HookMeta, SideEffect};
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum CompositionError {
@@ -20,6 +20,12 @@ pub enum CompositionError {
 
     #[error("composition exceeds runtime budget of {0} hooks")]
     BudgetExceeded(usize),
+
+    #[error("invalid lifecycle event: {0}")]
+    InvalidEvent(#[from] EventValidationError),
+
+    #[error("hook \"{0}\" requires oracle data but the event has none")]
+    MissingOracleData(String),
 }
 
 const MAX_HOOKS_PER_COMPOSITION: usize = 8;
@@ -78,9 +84,16 @@ impl Composition {
         self.hooks.is_empty()
     }
 
-    /// Run the event through every hook in priority order. Each hook sees the event
-    /// + its position in the composition; side-effects accumulate.
-    pub fn execute(&self, event: &LifecycleEvent) -> Result<ExecutionTrace, CompositionError> {
+    /// Evaluate the event and retain every decision, including the rejecting hook.
+    /// Effects from a rejected composition are omitted from `side_effects`; the
+    /// per-entry trace still records what hooks proposed before rejection.
+    pub fn evaluate(
+        &self,
+        event: &LifecycleEvent,
+        context: ExecutionContext,
+        policy: &EventValidationPolicy,
+    ) -> Result<ExecutionTrace, CompositionError> {
+        event.validate(context, policy)?;
         let mut trace = ExecutionTrace::default();
         let total = self.hooks.len();
         for (idx, hook) in self.hooks.iter().enumerate() {
@@ -91,6 +104,9 @@ impl Composition {
                     outcome: Outcome::Skipped,
                 });
                 continue;
+            }
+            if meta.flags.contains(HookFlag::UsesOracle) && event.market.oracle_points.is_empty() {
+                return Err(CompositionError::MissingOracleData(meta.name.clone()));
             }
             let ctx = HookContext {
                 event,
@@ -114,18 +130,68 @@ impl Composition {
                         hook_name: meta.name.clone(),
                         outcome: Outcome::Rejected(reason.clone()),
                     });
-                    return Err(CompositionError::Rejected(meta.name.clone(), reason));
+                    trace.side_effects.clear();
+                    trace.decision = ExecutionDecision::Rejected {
+                        hook_name: meta.name.clone(),
+                        reason,
+                    };
+                    return Ok(trace);
                 }
             }
         }
         Ok(trace)
+    }
+
+    /// Compatibility convenience for callers that still want rejection as an error.
+    /// Use `evaluate` when the decision trace must be retained for audit or learning.
+    pub fn execute(
+        &self,
+        event: &LifecycleEvent,
+        context: ExecutionContext,
+        policy: &EventValidationPolicy,
+    ) -> Result<ExecutionTrace, CompositionError> {
+        let trace = self.evaluate(event, context, policy)?;
+        match &trace.decision {
+            ExecutionDecision::Accepted => Ok(trace),
+            ExecutionDecision::Rejected { hook_name, reason } => Err(CompositionError::Rejected(
+                hook_name.clone(),
+                reason.clone(),
+            )),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ExecutionDecision {
+    Accepted,
+    Rejected { hook_name: String, reason: String },
+}
+
+impl Default for ExecutionDecision {
+    fn default() -> Self {
+        Self::Accepted
     }
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ExecutionTrace {
     pub entries: Vec<TraceEntry>,
+    /// Side effects a downstream host may apply; always empty on rejection.
     pub side_effects: Vec<(String, SideEffect)>,
+    pub decision: ExecutionDecision,
+}
+
+impl ExecutionTrace {
+    pub fn is_accepted(&self) -> bool {
+        matches!(self.decision, ExecutionDecision::Accepted)
+    }
+
+    pub fn rejection_reason(&self) -> Option<&str> {
+        match &self.decision {
+            ExecutionDecision::Accepted => None,
+            ExecutionDecision::Rejected { reason, .. } => Some(reason),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -147,8 +213,11 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::event::{AdapterKind, LifecycleEvent, LifecycleEventKind, MarketSnapshot, PositionSnapshot};
-    use crate::hook::{HookFlag, HookFlags, HookMeta};
+    use crate::event::{
+        AdapterKind, EventValidationPolicy, ExecutionContext, LifecycleEvent, LifecycleEventKind,
+        MarketSnapshot, PositionSnapshot,
+    };
+    use crate::hook::{HookFlag, HookFlags, HookMeta, SideEffect};
 
     struct AlwaysAccept(HookMeta);
 
@@ -158,6 +227,28 @@ mod tests {
         }
         fn evaluate(&self, _ctx: &HookContext<'_>) -> HookDecision {
             HookDecision::Accept
+        }
+    }
+
+    struct AlwaysReject(HookMeta);
+
+    impl Hook for AlwaysReject {
+        fn meta(&self) -> &HookMeta {
+            &self.0
+        }
+        fn evaluate(&self, _ctx: &HookContext<'_>) -> HookDecision {
+            HookDecision::Reject("policy denied".into())
+        }
+    }
+
+    struct AcceptWithEffect(HookMeta);
+
+    impl Hook for AcceptWithEffect {
+        fn meta(&self) -> &HookMeta {
+            &self.0
+        }
+        fn evaluate(&self, _ctx: &HookContext<'_>) -> HookDecision {
+            HookDecision::AcceptWith(SideEffect::OverrideMaxLtvBps(6_000))
         }
     }
 
@@ -197,17 +288,32 @@ mod tests {
 
     #[test]
     fn builder_rejects_empty() {
-        assert_eq!(CompositionBuilder::new().build().err(), Some(CompositionError::Empty));
+        assert_eq!(
+            CompositionBuilder::new().build().err(),
+            Some(CompositionError::Empty)
+        );
     }
 
     #[test]
     fn priority_orders_hooks() {
         let comp = CompositionBuilder::new()
-            .add(10, Arc::new(AlwaysAccept(meta("late", HookFlag::BeforeBorrow))))
-            .add(1, Arc::new(AlwaysAccept(meta("early", HookFlag::BeforeBorrow))))
+            .add(
+                10,
+                Arc::new(AlwaysAccept(meta("late", HookFlag::BeforeBorrow))),
+            )
+            .add(
+                1,
+                Arc::new(AlwaysAccept(meta("early", HookFlag::BeforeBorrow))),
+            )
             .build()
             .unwrap();
-        let trace = comp.execute(&dummy_event(LifecycleEventKind::BeforeBorrow)).unwrap();
+        let trace = comp
+            .execute(
+                &dummy_event(LifecycleEventKind::BeforeBorrow),
+                ExecutionContext { current_slot: 0 },
+                &EventValidationPolicy::default(),
+            )
+            .unwrap();
         assert_eq!(trace.entries[0].hook_name, "early");
         assert_eq!(trace.entries[1].hook_name, "late");
     }
@@ -215,10 +321,71 @@ mod tests {
     #[test]
     fn skips_event_when_flag_missing() {
         let comp = CompositionBuilder::new()
-            .add(1, Arc::new(AlwaysAccept(meta("only-deposit", HookFlag::BeforeDeposit))))
+            .add(
+                1,
+                Arc::new(AlwaysAccept(meta("only-deposit", HookFlag::BeforeDeposit))),
+            )
             .build()
             .unwrap();
-        let trace = comp.execute(&dummy_event(LifecycleEventKind::BeforeBorrow)).unwrap();
+        let trace = comp
+            .execute(
+                &dummy_event(LifecycleEventKind::BeforeBorrow),
+                ExecutionContext { current_slot: 0 },
+                &EventValidationPolicy::default(),
+            )
+            .unwrap();
         assert!(matches!(trace.entries[0].outcome, Outcome::Skipped));
+    }
+
+    #[test]
+    fn rejection_keeps_audit_trace_but_discards_effects() {
+        let comp = CompositionBuilder::new()
+            .add(
+                1,
+                Arc::new(AcceptWithEffect(meta("adjust-ltv", HookFlag::BeforeBorrow))),
+            )
+            .add(
+                2,
+                Arc::new(AlwaysReject(meta("deny-borrow", HookFlag::BeforeBorrow))),
+            )
+            .build()
+            .unwrap();
+        let trace = comp
+            .evaluate(
+                &dummy_event(LifecycleEventKind::BeforeBorrow),
+                ExecutionContext { current_slot: 0 },
+                &EventValidationPolicy::default(),
+            )
+            .unwrap();
+        assert_eq!(trace.entries.len(), 2);
+        assert!(matches!(trace.entries[0].outcome, Outcome::AcceptedWith(_)));
+        assert!(matches!(trace.entries[1].outcome, Outcome::Rejected(_)));
+        assert!(matches!(trace.decision, ExecutionDecision::Rejected { .. }));
+        assert!(trace.side_effects.is_empty());
+    }
+
+    #[test]
+    fn oracle_capability_requires_observations() {
+        let oracle_hook = HookMeta {
+            name: "needs-oracle".into(),
+            version: "1".into(),
+            author: "test".into(),
+            flags: HookFlags::empty()
+                .with(HookFlag::BeforeBorrow)
+                .with(HookFlag::UsesOracle),
+            description: String::new(),
+        };
+        let comp = CompositionBuilder::new()
+            .add(1, Arc::new(AlwaysAccept(oracle_hook)))
+            .build()
+            .unwrap();
+        assert!(matches!(
+            comp.evaluate(
+                &dummy_event(LifecycleEventKind::BeforeBorrow),
+                ExecutionContext { current_slot: 0 },
+                &EventValidationPolicy::default(),
+            ),
+            Err(CompositionError::MissingOracleData(_))
+        ));
     }
 }

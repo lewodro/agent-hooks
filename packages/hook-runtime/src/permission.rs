@@ -23,17 +23,30 @@ impl MemoryReputation {
     }
 
     pub fn record(&self, borrower: [u8; 32], score: u16, repayments: u32) {
-        self.scores.write().unwrap().insert(borrower, (score, repayments));
+        self.scores
+            .write()
+            .unwrap()
+            .insert(borrower, (score, repayments));
     }
 }
 
 impl ReputationProvider for MemoryReputation {
     fn score(&self, borrower: &[u8; 32]) -> u16 {
-        self.scores.read().unwrap().get(borrower).map(|(s, _)| *s).unwrap_or(0)
+        self.scores
+            .read()
+            .unwrap()
+            .get(borrower)
+            .map(|(s, _)| *s)
+            .unwrap_or(0)
     }
 
     fn repayment_count(&self, borrower: &[u8; 32]) -> u32 {
-        self.scores.read().unwrap().get(borrower).map(|(_, n)| *n).unwrap_or(0)
+        self.scores
+            .read()
+            .unwrap()
+            .get(borrower)
+            .map(|(_, n)| *n)
+            .unwrap_or(0)
     }
 }
 

@@ -14,8 +14,13 @@ pub mod hook;
 pub mod permission;
 pub mod simulation;
 
-pub use composition::{Composition, CompositionBuilder, CompositionError, ExecutionTrace};
-pub use event::{LifecycleEvent, LifecycleEventKind, MarketSnapshot, OraclePoint, PositionSnapshot};
+pub use composition::{
+    Composition, CompositionBuilder, CompositionError, ExecutionDecision, ExecutionTrace,
+};
+pub use event::{
+    EventValidationError, EventValidationPolicy, ExecutionContext, LifecycleEvent,
+    LifecycleEventKind, MarketSnapshot, OraclePoint, PositionSnapshot,
+};
 pub use hook::{Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta};
 pub use permission::{PermissionGate, ReputationProvider};
 pub use simulation::{BacktestReport, BacktestStep, Simulator};

@@ -30,7 +30,9 @@ pub enum HookFlag {
 }
 
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Pod, Zeroable, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, Debug, Default, PartialEq, Eq, Hash, Pod, Zeroable, Serialize, Deserialize,
+)]
 pub struct HookFlags(pub u16);
 
 impl HookFlags {
@@ -82,7 +84,10 @@ pub enum SideEffect {
     /// Delay the liquidation by N slots. Used by TimeTriggerLiq / AntiMEVLiq.
     DelayLiquidationSlots(u64),
     /// Emit a follow-on instruction (CPI handle) that the host must include.
-    EmitInstruction { kind: InstructionKind, payload: Vec<u8> },
+    EmitInstruction {
+        kind: InstructionKind,
+        payload: Vec<u8>,
+    },
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
