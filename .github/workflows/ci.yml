@@ -36,7 +36,7 @@ jobs:
     name: manifest vs README
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: check libs advertised in README live in some Cargo.toml or package.json
         shell: bash
         run: |

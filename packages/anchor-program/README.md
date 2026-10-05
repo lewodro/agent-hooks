@@ -37,7 +37,7 @@ The registry prototype stores `Composition` PDAs. It accepts at most eight slots
 ## Build
 
 ```
-anchor build
+pnpm --filter @agent-hooks/anchor-program build:anchor
 ```
 
 The executor's program id in `declare_id!` is a placeholder. Replace it before deployment.

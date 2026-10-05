@@ -7,7 +7,7 @@
   "private": true,
   "description": "Anchor program scaffolding for the Agent Hooks on-chain hook executor.",
   "scripts": {
-    "build": "anchor build",
+    "build:anchor": "anchor build",
     "test:validator": "anchor test",
     "deploy:devnet": "anchor deploy --provider.cluster devnet",
     "deploy:mainnet": "anchor deploy --provider.cluster mainnet"
