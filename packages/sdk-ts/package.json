@@ -17,7 +17,7 @@
   "dependencies": {
     "@coral-xyz/anchor": "^0.31.0",
     "@solana/web3.js": "^1.95.4",
-    "@agent-hooks/marginfi-adapter": "workspace:*",
+    "@agent-hooks/adapter-core": "workspace:*",
     "@agent-hooks/kamino-adapter": "workspace:*",
     "@agent-hooks/solend-adapter": "workspace:*"
   },

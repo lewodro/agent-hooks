@@ -1,27 +1,25 @@
 {
-  "name": "@agent-hooks/solend-adapter",
+  "name": "@agent-hooks/adapter-core",
   "version": "0.1.0",
   "license": "MIT",
   "homepage": "https://agenthooks.io",
   "repository": "https://github.com/lewodro/agent-hooks",
-  "description": "Agent Hooks adapter for Solend reserves / obligations.",
+  "description": "Shared lifecycle and normalized snapshot contracts for Agent Hooks protocol adapters.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test --import tsx src/**/*.test.ts"
   },
   "dependencies": {
-    "@agent-hooks/adapter-core": "workspace:*",
-    "@solendprotocol/solend-sdk": "^0.13.0",
-    "@solana/web3.js": "^1.95.4",
-    "bn.js": "^5.2.1"
+    "@solana/web3.js": "^1.95.4"
   },
   "devDependencies": {
-    "@types/bn.js": "^5.1.6",
     "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
 }

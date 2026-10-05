@@ -54,6 +54,22 @@ importers:
         specifier: ^5.7.2
         version: 5.9.3
 
+  packages/adapter-core:
+    dependencies:
+      '@solana/web3.js':
+        specifier: ^1.95.4
+        version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/agent-brain:
     dependencies:
       '@agent-hooks/sdk':
@@ -110,7 +126,7 @@ importers:
         version: link:../sdk-ts
       '@solana/web3.js':
         specifier: ^1.95.4
-        version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+        version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
       commander:
         specifier: ^13.0.0
         version: 13.1.0
@@ -136,9 +152,9 @@ importers:
 
   packages/kamino-adapter:
     dependencies:
-      '@agent-hooks/marginfi-adapter':
+      '@agent-hooks/adapter-core':
         specifier: workspace:*
-        version: link:../marginfi-adapter
+        version: link:../adapter-core
       '@kamino-finance/klend-sdk':
         specifier: ^3.2.18
         version: 3.2.26(bufferutil@4.1.0)(chai@4.5.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -155,12 +171,18 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
 
   packages/marginfi-adapter:
     dependencies:
+      '@agent-hooks/adapter-core':
+        specifier: workspace:*
+        version: link:../adapter-core
       '@mrgnlabs/marginfi-client-v2':
         specifier: ^4.0.0
         version: 4.0.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -189,12 +211,12 @@ importers:
 
   packages/sdk-ts:
     dependencies:
+      '@agent-hooks/adapter-core':
+        specifier: workspace:*
+        version: link:../adapter-core
       '@agent-hooks/kamino-adapter':
         specifier: workspace:*
         version: link:../kamino-adapter
-      '@agent-hooks/marginfi-adapter':
-        specifier: workspace:*
-        version: link:../marginfi-adapter
       '@agent-hooks/solend-adapter':
         specifier: workspace:*
         version: link:../solend-adapter
@@ -217,9 +239,9 @@ importers:
 
   packages/solend-adapter:
     dependencies:
-      '@agent-hooks/marginfi-adapter':
+      '@agent-hooks/adapter-core':
         specifier: workspace:*
-        version: link:../marginfi-adapter
+        version: link:../adapter-core
       '@solana/web3.js':
         specifier: ^1.95.4
         version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)
@@ -7839,13 +7861,13 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
+  isomorphic-ws@4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)):
+    dependencies:
+      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+
   isomorphic-ws@4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)):
     dependencies:
       ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@6.0.6)
-
-  isomorphic-ws@4.0.1(ws@7.5.13):
-    dependencies:
-      ws: 7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10)
 
   isomorphic-ws@4.0.1(ws@8.22.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)):
     dependencies:
@@ -7909,7 +7931,7 @@ snapshots:
       delay: 5.0.0
       es6-promisify: 5.0.0
       eyes: 0.1.8
-      isomorphic-ws: 4.0.1(ws@7.5.13)
+      isomorphic-ws: 4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       json-stringify-safe: 5.0.1
       stream-json: 1.9.1
       uuid: 8.3.2
@@ -7927,7 +7949,7 @@ snapshots:
       delay: 5.0.0
       es6-promisify: 5.0.0
       eyes: 0.1.8
-      isomorphic-ws: 4.0.1(ws@7.5.13)
+      isomorphic-ws: 4.0.1(ws@7.5.13(bufferutil@4.1.0)(utf-8-validate@5.0.10))
       json-stringify-safe: 5.0.1
       stream-json: 1.9.1
       uuid: 8.3.2

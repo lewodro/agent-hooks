@@ -1,6 +1,7 @@
 target/
 node_modules/
 dist/
+.turbo/
 .next/
 .anchor/
 test-ledger/

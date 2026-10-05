@@ -7,6 +7,7 @@ import {
   type Environment,
 } from "@mrgnlabs/marginfi-client-v2";
 import { NodeWallet } from "@mrgnlabs/mrgn-common";
+import { computeUtilisationBps } from "@agent-hooks/adapter-core";
 
 import type {
   LendingAdapter,
@@ -14,7 +15,7 @@ import type {
   LifecycleEventKind,
   PoolSnapshot,
   PositionSnapshot,
-} from "./types.js";
+} from "@agent-hooks/adapter-core";
 
 export const MARGINFI_PROGRAM_ID = new PublicKey(
   "MFv2hWf31Z9kbCa1snEPYctwafyhdvnV7FZnsebVacA",
@@ -92,10 +93,7 @@ export class MarginfiAdapter implements LendingAdapter {
       market: groupPubkey,
       totalAssetsUsd: totalAssets,
       totalLiabilitiesUsd: totalLiabilities,
-      utilisationBps:
-        totalAssets > 0
-          ? Math.min(10_000, Math.round((totalLiabilities / totalAssets) * 10_000))
-          : 0,
+      utilisationBps: computeUtilisationBps(totalAssets, totalLiabilities),
       reserves: Array.from(banks.entries()).map(([_, bank]) => ({
         mint: bank.mint.toBase58(),
         symbol: bank.tokenSymbol ?? bank.mint.toBase58().slice(0, 4),
@@ -166,4 +164,4 @@ export class MarginfiAdapter implements LendingAdapter {
   }
 }
 
-export * from "./types.js";
+export * from "@agent-hooks/adapter-core";

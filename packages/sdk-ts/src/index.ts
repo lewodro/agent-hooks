@@ -11,4 +11,4 @@ export type {
   MarketSnapshot,
   OraclePoint,
   ReserveSnapshot,
-} from "@agent-hooks/marginfi-adapter";
+} from "@agent-hooks/adapter-core";

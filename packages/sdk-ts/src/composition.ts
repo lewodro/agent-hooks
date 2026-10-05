@@ -1,4 +1,4 @@
-import type { LifecycleEventKind } from "@agent-hooks/marginfi-adapter";
+import type { LifecycleEventKind } from "@agent-hooks/adapter-core";
 
 export interface HookSpec {
   name: string;

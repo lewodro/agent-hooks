@@ -3,7 +3,7 @@ import type {
   LifecycleEventKind,
   MarketSnapshot,
   PositionSnapshot,
-} from "@agent-hooks/marginfi-adapter";
+} from "@agent-hooks/adapter-core";
 
 import { eventToFlag, type Composition, type HookSpec } from "./composition.js";
 

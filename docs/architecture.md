@@ -45,7 +45,7 @@ flowchart LR
 
 | Layer | Current responsibility | Boundary |
 |---|---|---|
-| Protocol adapters | Read pool/account snapshots and normalize data to the shared `LifecycleEvent` shape. | Current adapters are read-oriented; they do not subscribe to and intercept every protocol lifecycle transaction. |
+| `@agent-hooks/adapter-core` + protocol adapters | Shared normalized lifecycle/snapshot contracts and read pool/account snapshots for Marginfi, Kamino, and Solend. | Each adapter depends on the neutral contract package; current adapters are read-oriented and do not intercept every protocol lifecycle transaction. |
 | `@agent-hooks/sdk` | TypeScript event, composition, and simulator interfaces. | Its local simulator is not a protocol enforcement point. |
 | `hook-runtime` | Rust event validation, ordered hook evaluation, bounded side-effect proposals, audit traces, and historical simulation. | It evaluates local Rust `Hook` implementations; side effects are proposals until a host applies them. |
 | `agent-brain` | Storage interface with bounded in-memory and PostgreSQL implementations for events and hook feedback; query or stream prior experience to a planner. | PostgreSQL uses an injected host database client; provenance labels remain caller-reported and are not cryptographically verified. No automatic reward attribution, causal model, or model training. |

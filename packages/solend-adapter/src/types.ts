@@ -7,4 +7,4 @@ export type {
   PoolSnapshot,
   PositionSnapshot,
   ReserveSnapshot,
-} from "@agent-hooks/marginfi-adapter";
+} from "@agent-hooks/adapter-core";

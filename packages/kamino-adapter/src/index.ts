@@ -4,6 +4,7 @@ import {
   KaminoObligation,
   PROGRAM_ID as KLEND_PROGRAM_ID,
 } from "@kamino-finance/klend-sdk";
+import { computeUtilisationBps } from "@agent-hooks/adapter-core";
 
 import type {
   LendingAdapter,
@@ -12,7 +13,7 @@ import type {
   PoolSnapshot,
   PositionSnapshot,
   ReserveSnapshot,
-} from "./types.js";
+} from "@agent-hooks/adapter-core";
 
 export const KAMINO_PROGRAM_ID = new PublicKey(KLEND_PROGRAM_ID);
 
@@ -70,10 +71,7 @@ export class KaminoAdapter implements LendingAdapter {
       market,
       totalAssetsUsd: totalAssets,
       totalLiabilitiesUsd: totalLiabilities,
-      utilisationBps:
-        totalAssets > 0
-          ? Math.min(10_000, Math.round((totalLiabilities / totalAssets) * 10_000))
-          : 0,
+      utilisationBps: computeUtilisationBps(totalAssets, totalLiabilities),
       reserves,
     };
   }
@@ -118,4 +116,4 @@ export class KaminoAdapter implements LendingAdapter {
   }
 }
 
-export * from "./types.js";
+export * from "@agent-hooks/adapter-core";
