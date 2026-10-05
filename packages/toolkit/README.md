@@ -17,7 +17,7 @@ import { TreasuryReviewQueue } from "@agent-hooks/toolkit/treasury";
 
 ## Solana hooks and agent frameworks
 
-`SolanaHookEngine` runs deterministic host-side hooks over normalized Solana lifecycle events. Hooks are ordered by priority; nonmatching hooks are skipped; a rejection ends evaluation; accepted effects are returned as proposals for the host. The engine does not send transactions, call RPC, or execute model code. This keeps model inference and network I/O away from action-critical evaluation.
+`SolanaHookEngine` runs deterministic host-side hooks over normalized Solana lifecycle events. Hooks are ordered by priority; nonmatching hooks are skipped; a rejection ends evaluation; accepted effects are returned as proposals for the host. Malformed events, invalid effects, and hook exceptions fail closed. The engine does not send transactions, call RPC, or execute model code. This keeps model inference and network I/O away from action-critical evaluation.
 
 ```ts
 const engine = new SolanaHookEngine([
