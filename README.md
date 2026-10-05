@@ -39,6 +39,8 @@ flowchart LR
 
 `agent-brain` supplies a storage boundary, provenance labels, per-hook trace memory, retrieval API, and low-latency in-process subscriptions for newly persisted outcomes. It does not train a model or verify RPC data by itself: deployments choose their event store, trusted chain observer, reward definition, retrieval strategy, and model provider. This lets the open source community connect different agent stacks and share reusable hook programs and learning systems. Keep model inference and memory retrieval off the transaction-critical path; hooks that directly gate an action should be deterministic, bounded, and testable.
 
+For multi-process agents, `PostgresExperienceStore.readAfter(cursor, limit)` supplies ascending, durable pages from the shared experience stream. Save the returned sequence only after the consumer's work is safely recorded, and make processing idempotent by experience ID: a restart can replay a page, so delivery is at-least-once rather than exactly-once. The cursor is database ingestion order—not a Solana slot, event timestamp, or proof of execution. PostgreSQL serializes sequence allocation to prevent concurrent writers from making a consumer skip a late commit; that ordering is a deliberate write-throughput tradeoff for this event stream.
+
 ## How hooks work
 
 1. An adapter or replay source normalizes an observation of a deposit, borrow, repay, or liquidation into a `LifecycleEvent` with protocol, position, market/oracle snapshot, and action payload. The current adapters are read-oriented; they do not intercept every live protocol action.
@@ -62,7 +64,7 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 | `@agent-hooks/sdk` (`packages/sdk-ts`) | TypeScript orchestration: compose hooks, simulate, and build executor instructions | Adapters, Anchor IDL, CLI, agent-brain |
 | `@agent-hooks/adapter-core` | Shared normalized lifecycle and pool snapshot contracts for protocol adapters | Marginfi, Kamino, Solend, SDK |
 | `hook-runtime` (`packages/hook-runtime`) | Rust lifecycle event model, deterministic hook composition, traces, and simulation | Hook library and on-chain integrations |
-| `agent-brain` (`packages/agent-brain`) | Experience memory interface with bounded local and PostgreSQL stores, provenance labels, traces, and subscriptions; no model training included | SDK events and agent planners |
+| `agent-brain` (`packages/agent-brain`) | Schema-validated experience memory with bigint-safe PostgreSQL persistence, bounded cursor replay, local subscriptions, and explicit provenance; no model training included | SDK events and agent planners |
 | `anchor-program` (`packages/anchor-program`) | Anchor 0.31 registry prototype plus `agent-hooks-policy` slippage/cooldown CPI gate example | Solana programs and SDK clients |
 | `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals, policy validation, and content-bound operator approvals | Brains, simulators, CLI, and operator approval flows |
 | `@agent-hooks/toolkit` (`packages/toolkit`) | Standalone TypeScript hooks, experience memory, X workflow, and treasury review primitives | Independent agent applications; no required runtime dependencies |
