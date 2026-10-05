@@ -144,7 +144,7 @@ export class MarginfiAdapter implements LendingAdapter {
       adapter: "marginfi",
       position,
       market: {
-        slot,
+        slot: BigInt(slot),
         timestamp: Math.floor(Date.now() / 1000),
         realisedVolBps: 200,
         utilisationBps: snapshot.utilisationBps,

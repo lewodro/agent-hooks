@@ -41,7 +41,7 @@ function event(): LifecycleEvent {
       liquidationThresholdBps: 8_000,
     },
     market: {
-      slot: 10,
+      slot: 10n,
       timestamp: 1_700_000_000,
       realisedVolBps: 400,
       utilisationBps: 5_000,
@@ -72,10 +72,10 @@ test("observe snapshots trace/event inputs and labels missing provenance unverif
     trace,
   });
 
-  sourceEvent.market.slot = 99;
+  sourceEvent.market.slot = 99n;
   trace[0]!.decision = "rejected";
   assert.equal(experience.schemaVersion, 1);
-  assert.equal(experience.event.market.slot, 10);
+  assert.equal(experience.event.market.slot, 10n);
   assert.equal(experience.trace[0]?.decision, "accepted");
   assert.deepEqual(experience.tags, ["solana"]);
   assert.deepEqual(experience.feedback.hookProgramIds, ["hook-a"]);
@@ -250,6 +250,27 @@ test("memory store validates records even when bypassing AgentBrain", async () =
   malformed.event.payload = new Array(257).fill(0);
   await assert.rejects(store.append(malformed), /event payload/);
   assert.deepEqual(await store.query({}), [], "invalid records are never retained");
+});
+
+test("brain rejects oracle observations outside deterministic runtime bounds", async () => {
+  const brain = new AgentBrain(new TestStore());
+  const invalid = event();
+  invalid.market.oraclePoints = [{
+    mint: "oracle-a",
+    priceE8: 10_000n,
+    confidenceE8: 1_001n,
+    slot: 9n,
+  }];
+  await assert.rejects(brain.observe({ event: invalid, feedback, tags: [] }), /confidence exceeds 1000 bps/);
+
+  invalid.market.oraclePoints.push({
+    mint: "oracle-a",
+    priceE8: 10_000n,
+    confidenceE8: 1n,
+    slot: 9n,
+  });
+  invalid.market.oraclePoints[0]!.confidenceE8 = 1n;
+  await assert.rejects(brain.observe({ event: invalid, feedback, tags: [] }), /is duplicated/);
 });
 
 test("memory feed supports ordered resume cursors and bounded pages", async () => {

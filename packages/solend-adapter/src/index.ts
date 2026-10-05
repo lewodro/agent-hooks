@@ -107,7 +107,7 @@ export class SolendAdapter implements LendingAdapter {
       adapter: "solend",
       position,
       market: {
-        slot,
+        slot: BigInt(slot),
         timestamp: Math.floor(Date.now() / 1000),
         realisedVolBps: 300,
         utilisationBps: snapshot.utilisationBps,

@@ -28,7 +28,8 @@ export interface OraclePoint {
 }
 
 export interface MarketSnapshot {
-  slot: number;
+  /** Solana slot as an exact unsigned integer; do not round through JS number. */
+  slot: bigint;
   timestamp: number;
   realisedVolBps: number;
   utilisationBps: number;

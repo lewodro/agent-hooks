@@ -30,7 +30,7 @@ function fakeEvent(slot: number, kind: LifecycleEventKind): LifecycleEvent {
       liquidationThresholdBps: 8_000,
     },
     market: {
-      slot,
+      slot: BigInt(slot),
       timestamp: 40_000,
       realisedVolBps: 1_200 + Math.floor(Math.sin(slot / 5) * 800),
       utilisationBps: 6_000,

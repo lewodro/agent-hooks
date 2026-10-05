@@ -102,6 +102,7 @@ const MAX_HOOKS = 8;
 const MAX_TRACE_ENTRIES = 8;
 const MAX_TAGS = 64;
 const MAX_TAG_LENGTH = 128;
+const U64_MAX = (1n << 64n) - 1n;
 
 /** Validate persisted or caller-provided experiences at every storage boundary. */
 export function validateExperience(value: unknown): asserts value is Experience {
@@ -137,19 +138,26 @@ export function validateExperience(value: unknown): asserts value is Experience 
 
   if (!isRecord(event.market)) throw new TypeError("experience market must be an object");
   const market = event.market;
-  requireSafeNonNegativeInteger(market.slot, "market slot");
+  requireSolanaU64(market.slot, "market slot");
   requireSafeInteger(market.timestamp, "market timestamp");
   requireFiniteNonNegative(market.realisedVolBps, "realised volatility");
   requireBasisPoints(market.utilisationBps, "market utilisation");
   if (!Array.isArray(market.oraclePoints) || market.oraclePoints.length > MAX_ORACLE_POINTS) {
     throw new RangeError(`market must contain at most ${MAX_ORACLE_POINTS} oracle points`);
   }
+  const oracleMints = new Set<string>();
   for (const [index, point] of market.oraclePoints.entries()) {
     if (!isRecord(point)) throw new TypeError(`oracle point ${index} must be an object`);
     requireString(point.mint, `oracle point ${index} mint`, 128);
-    requireUnsignedBigInt(point.priceE8, `oracle point ${index} priceE8`, true);
-    requireUnsignedBigInt(point.confidenceE8, `oracle point ${index} confidenceE8`);
-    requireUnsignedBigInt(point.slot, `oracle point ${index} slot`);
+    if (oracleMints.has(point.mint)) throw new TypeError(`oracle point mint ${point.mint} is duplicated`);
+    oracleMints.add(point.mint);
+    requireSolanaU64(point.priceE8, `oracle point ${index} priceE8`, true);
+    requireSolanaU64(point.confidenceE8, `oracle point ${index} confidenceE8`);
+    requireSolanaU64(point.slot, `oracle point ${index} slot`);
+    if (point.slot > market.slot) throw new RangeError(`oracle point ${index} slot is newer than the market snapshot`);
+    if (point.confidenceE8 * 10_000n > point.priceE8 * 1_000n) {
+      throw new RangeError(`oracle point ${index} confidence exceeds 1000 bps of price`);
+    }
   }
 
   if (!isRecord(value.feedback)) throw new TypeError("experience feedback must be an object");
@@ -513,9 +521,9 @@ function requireBasisPoints(value: unknown, field: string): asserts value is num
   if (value < 0 || value > 10_000) throw new RangeError(`${field} must be between 0 and 10000 bps`);
 }
 
-function requireUnsignedBigInt(value: unknown, field: string, requirePositive = false): asserts value is bigint {
-  if (typeof value !== "bigint" || value < 0n || (requirePositive && value === 0n)) {
-    throw new TypeError(`${field} must be a ${requirePositive ? "positive" : "non-negative"} bigint`);
+function requireSolanaU64(value: unknown, field: string, requirePositive = false): asserts value is bigint {
+  if (typeof value !== "bigint" || value < 0n || value > U64_MAX || (requirePositive && value === 0n)) {
+    throw new TypeError(`${field} must be a ${requirePositive ? "positive" : "non-negative"} u64 bigint`);
   }
 }
 

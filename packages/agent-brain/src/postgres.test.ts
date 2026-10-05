@@ -59,7 +59,7 @@ function sample(id = "experience-1"): Experience {
         owner: "owner", collateralMint: "collateral", debtMint: "debt", collateralAmount: 100,
         debtAmount: 50, ltvBps: 5_000, liquidationThresholdBps: 8_000,
       },
-      market: { slot: 10, timestamp: 1_700_000_000, realisedVolBps: 400, utilisationBps: 5_000, oraclePoints: [] },
+      market: { slot: 10n, timestamp: 1_700_000_000, realisedVolBps: 400, utilisationBps: 5_000, oraclePoints: [] },
       payload: [],
     },
     feedback: {
@@ -124,7 +124,8 @@ test("PostgreSQL preserves large oracle integers across JSON persistence", async
   const store = new PostgresExperienceStore(new FakePostgres());
   const item = sample();
   const priceE8 = 9_007_199_254_740_993n;
-  const confidenceE8 = 12_345_678_901_234_567n;
+  const confidenceE8 = 500_000_000_000_000n;
+  item.event.market.slot = 9_007_199_254_740_999n;
   item.event.market.oraclePoints.push({
     mint: "mint-a",
     priceE8,
@@ -137,6 +138,17 @@ test("PostgreSQL preserves large oracle integers across JSON persistence", async
   assert.equal(restored?.event.market.oraclePoints[0]?.priceE8, priceE8);
   assert.equal(restored?.event.market.oraclePoints[0]?.confidenceE8, confidenceE8);
   assert.equal(restored?.event.market.oraclePoints[0]?.slot, 9_007_199_254_740_999n);
+  assert.equal(restored?.event.market.slot, 9_007_199_254_740_999n);
+});
+
+test("PostgreSQL upgrades legacy numeric market slots when reading schema-version-1 rows", async () => {
+  const db = new FakePostgres();
+  const legacy = sample("legacy-market-slot");
+  (legacy.event.market as unknown as { slot: unknown }).slot = 10;
+  db.payloads.push(legacy);
+  db.sequences.set(legacy.id, 1n);
+  const [restored] = await new PostgresExperienceStore(db).query({});
+  assert.equal(restored?.event.market.slot, 10n);
 });
 
 test("PostgreSQL rejects malformed records already present in storage", async () => {

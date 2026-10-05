@@ -199,6 +199,7 @@ function canonicalJson(experience: Experience): string {
       ...experience.event,
       market: {
         ...experience.event.market,
+        slot: experience.event.market.slot.toString(),
         oraclePoints: experience.event.market.oraclePoints.map((point) => ({
           ...point,
           priceE8: point.priceE8.toString(),
@@ -226,9 +227,10 @@ function decodeExperience(value: unknown): Experience {
   if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
     throw new TypeError("PostgreSQL experience payload is not an object");
   }
-  const experience = decoded as Experience & {
+  const experience = decoded as Omit<Experience, "event"> & {
     event: Omit<Experience["event"], "market"> & {
-      market: Omit<Experience["event"]["market"], "oraclePoints"> & {
+      market: Omit<Experience["event"]["market"], "slot" | "oraclePoints"> & {
+        slot: string;
         oraclePoints: Array<{
           mint: string;
           priceE8: string;
@@ -248,12 +250,14 @@ function decodeExperience(value: unknown): Experience {
   }
   let restored: Experience;
   try {
+    const rawMarketSlot = experience.event.market.slot as unknown;
     restored = {
       ...experience,
       event: {
         ...experience.event,
         market: {
           ...experience.event.market,
+          slot: parseMarketSlot(rawMarketSlot),
           oraclePoints: experience.event.market.oraclePoints.map((point) => ({
             ...point,
             priceE8: parseUnsignedBigInt(point.priceE8, "priceE8"),
@@ -277,6 +281,12 @@ function parseUnsignedBigInt(value: unknown, field: string): bigint {
     throw new TypeError(`${field} must be a non-negative decimal string`);
   }
   return BigInt(value);
+}
+
+function parseMarketSlot(value: unknown): bigint {
+  // Older schema-version-1 records stored the market slot as a JSON number.
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return BigInt(value);
+  return parseUnsignedBigInt(value, "market slot");
 }
 
 function parseSequence(value: unknown): bigint {

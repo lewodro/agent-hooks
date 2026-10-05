@@ -25,7 +25,7 @@ function evt(owner: string, slot: number): LifecycleEvent {
       liquidationThresholdBps: 8_000,
     },
     market: {
-      slot,
+      slot: BigInt(slot),
       timestamp: 1_700_000_000 + slot * 60,
       realisedVolBps: 400,
       utilisationBps: 5_400,

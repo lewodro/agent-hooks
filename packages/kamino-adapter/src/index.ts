@@ -105,7 +105,7 @@ export class KaminoAdapter implements LendingAdapter {
       adapter: "kamino",
       position,
       market: {
-        slot: await m.getConnection().getSlot(),
+        slot: BigInt(await m.getConnection().getSlot()),
         timestamp: Math.floor(Date.now() / 1000),
         realisedVolBps: 250,
         utilisationBps: snapshot.utilisationBps,

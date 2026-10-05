@@ -29,7 +29,7 @@ export interface BacktestReport {
   ltvOverrides: number;
   realisedPnlE8: bigint;
   steps: Array<{
-    slot: number;
+    slot: bigint;
     kind: LifecycleEventKind;
     entries: TraceEntry[];
     rejected: string | null;
@@ -146,7 +146,7 @@ function decideTimeTriggerLiq(cfg: Record<string, unknown>, market: MarketSnapsh
   const windows = (cfg.allowedWindows as Array<{ startSec: number; endSec: number }>) ?? [];
   const maxAge = Number(cfg.maxOracleAgeSlots ?? 500);
   const delay = Number(cfg.delaySlots ?? 300);
-  const stale = market.oraclePoints.some((p) => BigInt(market.slot) - p.slot > BigInt(maxAge));
+  const stale = market.oraclePoints.some((p) => market.slot - p.slot > BigInt(maxAge));
   if (stale) return { outcome: "accepted", sideEffect: { kind: "delay-liquidation-slots", slots: delay } };
   if (windows.length === 0) return { outcome: "accepted" };
   const seconds = ((market.timestamp % 86_400) + 86_400) % 86_400;
