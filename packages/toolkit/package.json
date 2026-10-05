@@ -1,0 +1,47 @@
+{
+  "name": "@agent-hooks/toolkit",
+  "version": "0.1.0",
+  "description": "Open-source TypeScript toolkit for Solana hooks, learning agents, X publishing workflows, and treasury review.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./solana": {
+      "types": "./dist/solana.d.ts",
+      "import": "./dist/solana.js"
+    },
+    "./agents": {
+      "types": "./dist/agents.d.ts",
+      "import": "./dist/agents.js"
+    },
+    "./x": {
+      "types": "./dist/x.d.ts",
+      "import": "./dist/x.js"
+    },
+    "./treasury": {
+      "types": "./dist/treasury.d.ts",
+      "import": "./dist/treasury.js"
+    }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "pack:local": "npm run build && npm pack --pack-destination ../../releases"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.2"
+  }
+}
