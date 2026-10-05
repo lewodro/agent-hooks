@@ -1,0 +1,19 @@
+{
+  "name": "@agent-hooks/web-preview",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Standalone React X-agent prompt preview component; not a full website app.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.7.2"
+  }
+}

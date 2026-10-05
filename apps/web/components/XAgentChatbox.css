@@ -1,0 +1,149 @@
+.x-agent {
+  --agent-green: #00ff66;
+  --agent-cyan: #00e5ff;
+  --agent-ink: #050811;
+  --agent-panel: #0d1322;
+  --agent-raised: #1e293b;
+  --agent-text: #e7f0ff;
+  --agent-muted: #94a3b8;
+  display: grid;
+  grid-template-rows: auto minmax(220px, 1fr) auto auto;
+  min-height: 360px;
+  overflow: hidden;
+  color: var(--agent-text);
+  background: var(--agent-panel);
+  border: 1px solid #25324a;
+  border-radius: 12px;
+  font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  box-shadow: 0 16px 48px #0008, 0 0 28px #00ff6612;
+}
+
+.x-agent__header,
+.x-agent__form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--agent-ink);
+  border-bottom: 1px solid #25324a;
+}
+
+.x-agent__header {
+  color: var(--agent-green);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+}
+
+.x-agent__lamp {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--agent-green);
+  box-shadow: 0 0 12px var(--agent-green);
+}
+
+.x-agent__mode {
+  margin-left: auto;
+  color: var(--agent-cyan);
+  font-size: 9px;
+}
+
+.x-agent__transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  padding: 18px;
+}
+
+.x-agent__message {
+  max-width: 88%;
+  margin: 0;
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  border-radius: 8px;
+}
+
+.x-agent__message--agent {
+  align-self: start;
+  background: var(--agent-raised);
+}
+
+.x-agent__message--you {
+  align-self: end;
+  background: #073324;
+}
+
+.x-agent__speaker {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--agent-cyan);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.x-agent__message--you .x-agent__speaker {
+  color: var(--agent-green);
+}
+
+.x-agent__typing,
+.x-agent__disclaimer {
+  margin: 0;
+  color: var(--agent-muted);
+  font-size: 10px;
+}
+
+.x-agent__typing {
+  padding: 0 18px 12px;
+}
+
+.x-agent__form {
+  flex-wrap: wrap;
+  border-top: 1px solid #25324a;
+  border-bottom: 0;
+}
+
+.x-agent__prompt-label {
+  color: var(--agent-cyan);
+  font-size: 10px;
+}
+
+.x-agent__form input {
+  flex: 1 1 180px;
+  min-width: 0;
+  padding: 10px 12px;
+  color: var(--agent-text);
+  background: var(--agent-panel);
+  border: 1px solid #334155;
+  border-radius: 6px;
+  font: inherit;
+}
+
+.x-agent__form input:focus-visible,
+.x-agent__form button:focus-visible {
+  outline: 2px solid var(--agent-cyan);
+  outline-offset: 2px;
+}
+
+.x-agent__form button {
+  padding: 10px 12px;
+  color: var(--agent-ink);
+  background: var(--agent-green);
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.x-agent__form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.x-agent__disclaimer {
+  padding: 0 16px 12px;
+  background: var(--agent-ink);
+}

@@ -2,8 +2,14 @@
   "name": "agent-hooks",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
+  "homepage": "https://agenthooks.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lewodro/agent-hooks.git"
+  },
   "description": "Open source hook execution and experience framework for autonomous agents in digital worlds.",
-  "workspaces": ["packages/*", "examples/*"],
+  "workspaces": ["packages/*", "examples/*", "apps/web"],
   "scripts": {
     "build": "turbo build",
     "test": "turbo test",
