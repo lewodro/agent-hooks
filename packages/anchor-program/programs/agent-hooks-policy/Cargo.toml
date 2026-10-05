@@ -1,0 +1,21 @@
+[package]
+name = "agent-hooks-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Anchor policy hook example for agent execution bounds and cooldowns."
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "agent_hooks_policy"
+
+[features]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+cpi = ["no-entrypoint"]
+default = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang.workspace = true

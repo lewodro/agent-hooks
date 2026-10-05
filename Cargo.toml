@@ -4,13 +4,14 @@ members = [
     "packages/hook-runtime",
     "packages/hook-library",
     "packages/anchor-program/programs/agent-hooks-executor",
+    "packages/anchor-program/programs/agent-hooks-policy",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "Apache-2.0"
-repository = "https://github.com/agent-hooks/agent-hooks"
+license = "MIT"
+repository = "https://github.com/lewodro/agent-hooks"
 authors = ["AGENT HOOKS contributors"]
 
 [workspace.dependencies]
