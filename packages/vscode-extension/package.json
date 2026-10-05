@@ -4,8 +4,9 @@
   "description": "Visualise hook compositions as knot diagrams, simulate lifecycle events, and deploy with the Agent Hooks CLI from inside VS Code.",
   "version": "0.1.0",
   "publisher": "agent-hooks",
-  "license": "Apache-2.0",
-  "repository": "https://github.com/agent-hooks/agent-hooks",
+  "license": "MIT",
+  "homepage": "https://agenthooks.io",
+  "repository": "https://github.com/lewodro/agent-hooks",
   "engines": {
     "vscode": "^1.95.0"
   },

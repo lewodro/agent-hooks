@@ -1,6 +1,9 @@
 {
   "name": "@agent-hooks/agent-brain",
   "version": "0.1.0",
+  "license": "MIT",
+  "homepage": "https://agenthooks.io",
+  "repository": "https://github.com/lewodro/agent-hooks",
   "description": "Streaming experience memory for agents that learn from hook execution outcomes.",
   "type": "module",
   "main": "dist/index.js",

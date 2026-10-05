@@ -1,6 +1,9 @@
 {
   "name": "@agent-hooks/sdk",
   "version": "0.1.0",
+  "license": "MIT",
+  "homepage": "https://agenthooks.io",
+  "repository": "https://github.com/lewodro/agent-hooks",
   "description": "Agent Hooks TypeScript SDK — compose hooks, simulate lifecycle events, send transactions to the on-chain executor.",
   "type": "module",
   "main": "dist/index.js",

@@ -1,6 +1,9 @@
 {
   "name": "@agent-hooks/cli",
   "version": "0.1.2",
+  "license": "MIT",
+  "homepage": "https://agenthooks.io",
+  "repository": "https://github.com/lewodro/agent-hooks",
   "description": "Agent Hooks command-line tools \u2014 create, simulate, and deploy lending hooks on Solana.",
   "type": "module",
   "bin": {

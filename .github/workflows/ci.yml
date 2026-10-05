@@ -15,6 +15,7 @@ jobs:
       - run: cargo test -p agent-hooks-runtime
       - run: cargo check -p agent-hooks-library
       - run: cargo test -p agent-hooks-library
+      - run: cargo check -p agent-hooks-policy --locked
 
   manifests:
     name: manifest vs README

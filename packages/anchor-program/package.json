@@ -1,6 +1,9 @@
 {
   "name": "@agent-hooks/anchor-program",
   "version": "0.1.0",
+  "license": "MIT",
+  "homepage": "https://agenthooks.io",
+  "repository": "https://github.com/lewodro/agent-hooks",
   "private": true,
   "description": "Anchor program scaffolding for the Agent Hooks on-chain hook executor.",
   "scripts": {

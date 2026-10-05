@@ -1,6 +1,9 @@
 {
   "name": "@agent-hooks/agent-runtime",
   "version": "0.1.0",
+  "license": "MIT",
+  "homepage": "https://agenthooks.io",
+  "repository": "https://github.com/lewodro/agent-hooks",
   "description": "Policy-bound planning and approval primitives for Agent Hooks.",
   "type": "module",
   "main": "dist/index.js",
