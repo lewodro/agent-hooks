@@ -50,6 +50,7 @@ flowchart LR
 | `hook-runtime` | Rust event validation, ordered hook evaluation, bounded side-effect proposals, audit traces, and historical simulation. | It evaluates local Rust `Hook` implementations; side effects are proposals until a host applies them. |
 | `agent-brain` | Storage interface for events and hook feedback; query prior experience for a planner. | No built-in durable database, automatic reward attribution, causal model, or model training. |
 | `agent-runtime` | Agent proposal, simulation, and approval boundaries. | Model outputs remain untrusted proposals and cannot sign or submit transactions. |
+| `@agent-hooks/toolkit` | Standalone TypeScript hook engine, bounded memory, daily X workflow, and treasury review queue. | Local workflow primitives only; production hosts provide durable stores, identity authentication, chain adapters, and execution services. |
 | Anchor executor | Pool/composition registration, eligibility receipts, and hook listing metadata. | `run_composition` does not CPI into registered hook programs, enforce their decisions, or mutate downstream protocol state. |
 | Anchor policy example | A standalone policy instruction with bounded inputs and executor-PDA authorization. | A downstream protocol must call it before its own mutation and bind the checked values to that exact action; this sample is not itself a swap executor. |
 

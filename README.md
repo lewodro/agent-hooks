@@ -64,6 +64,7 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 | `agent-brain` (`packages/agent-brain`) | Experience memory interface: append observations and recall prior outcomes; no model training included | SDK events and agent planners |
 | `anchor-program` (`packages/anchor-program`) | Anchor 0.31 registry prototype plus `agent-hooks-policy` slippage/cooldown CPI gate example | Solana programs and SDK clients |
 | `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals, policy validation, and content-bound operator approvals | Brains, simulators, CLI, and operator approval flows |
+| `@agent-hooks/toolkit` (`packages/toolkit`) | Standalone TypeScript hooks, experience memory, X workflow, and treasury review primitives | Independent agent applications; no required runtime dependencies |
 | `@agent-hooks/marginfi-adapter` | Marginfi event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/kamino-adapter` | Kamino Lend event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/solend-adapter` | Solend event and market normalization | SDK and hook-runtime |
