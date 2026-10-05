@@ -44,8 +44,8 @@ The executor's program id in `declare_id!` is a placeholder. Replace it before d
 
 ## Test
 
-`cargo test -p agent-hooks-executor` runs the registry validation unit tests. The Mocha integration tests in `tests/` need a local validator; they currently cover program ID and pool registration, not hook CPI or downstream protocol enforcement. The Anchor config declares local protocol clones for future integration work.
+`cargo test -p agent-hooks-executor` runs the registry validation unit tests and is part of the portable Rust workspace suite. The Mocha integration tests in `tests/` need the Anchor CLI and a local validator; they currently cover program ID and pool registration, not hook CPI or downstream protocol enforcement. They are intentionally exposed as a separate `test:validator` task so a standard TypeScript workspace test run does not imply local-validator coverage. The Anchor config declares local protocol clones for future integration work.
 
 ```
-anchor test
+pnpm --filter @agent-hooks/anchor-program test:validator
 ```
