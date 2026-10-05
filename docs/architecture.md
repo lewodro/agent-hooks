@@ -1,13 +1,15 @@
 # Architecture
 
-AGENT HOOKS is four rings: adapters, runtime, executor, and an approval-bound agent control plane.
+Agent Hooks separates protocol adaptation, deterministic execution, experience memory, and agent planning. This lets agents learn from live feedback without coupling hook evaluation to a model provider.
 
 ```mermaid
 %%{init: { "theme": "base", "themeVariables": {
-  "primaryColor": "#3D2817",
-  "primaryTextColor": "#F0EAD6",
-  "primaryBorderColor": "#D4AF37",
-  "lineColor": "#D4AF37",
+  "primaryColor": "#0D1322",
+  "primaryTextColor": "#E7F0FF",
+  "primaryBorderColor": "#00FF66",
+  "lineColor": "#00E5FF",
+  "secondaryColor": "#1E293B",
+  "tertiaryColor": "#050811",
   "fontFamily": "Space Mono, monospace"
 }} }%%
 flowchart TB
@@ -26,7 +28,8 @@ flowchart TB
       PDA3[(HookListing PDA)]
     end
     subgraph control [Agent control plane · off-chain]
-      AG[Agent Runtime]
+      BRAIN[agent-brain · experience store]
+      AG[Agent planner]
       POLICY[Policy + human approval]
     end
     A1 & A2 & A3 -- LifecycleEvent --> RT
@@ -34,6 +37,8 @@ flowchart TB
     EX --- PDA1
     EX --- PDA2
     EX --- PDA3
+    EX -- receipt + outcome --> BRAIN
+    BRAIN -- retrieved experience --> AG
     AG -- proposal only --> POLICY
     POLICY -- approved composition --> RT
 ```
@@ -57,3 +62,7 @@ Uniswap v4 encodes hook flags in the contract address. That works on EVM because
 ## Agent control plane
 
 `packages/agent-runtime` gives AI agents a deliberately narrow integration surface: they can generate versioned proposals, attach assumptions and evidence, and request deterministic simulations. Policies reject unapproved or unsimulated mutations. The runtime has no wallet, private-key, transaction-submission, or deployment capability; an operator must separately review and execute any resulting composition change.
+
+## Continuous experience loop
+
+`LifecycleEvent` is the shared boundary between adapters, simulations, and the brain. An execution receipt and any later outcome feedback are stored with the event, hook IDs, and composition ID using `AgentBrain.observe()`. Later, `AgentBrain.recall()` returns prior experiences by adapter, event kind, or composition so a planner can form its next proposal. A store implementation may use an append-only database and optional similarity search; the package itself does not train a model or infer causality from correlation.
