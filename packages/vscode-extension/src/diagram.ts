@@ -24,8 +24,7 @@ export function renderKnotDiagram(): string {
   <meta charset="utf-8" />
   <title>Agent Hooks Hook Designer</title>
   <style>
-    body {
-      margin: 0;
+    :root {
       --accent-primary: #00FF66;
       --accent-secondary: #00E5FF;
       --background: #050811;
@@ -34,6 +33,9 @@ export function renderKnotDiagram(): string {
       --text-primary: #E7F0FF;
       --text-muted: #94A3B8;
       --border: #25324A;
+    }
+    body {
+      margin: 0;
       background: var(--background);
       color: var(--text-primary);
       font-family: "Space Mono", monospace;
