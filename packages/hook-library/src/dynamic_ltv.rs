@@ -3,9 +3,8 @@
 //! Knot: slip knot. When volatility tightens, the knot tightens too (lower LTV).
 
 use agent_hooks_runtime::{
-    Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta,
-    event::LifecycleEventKind,
-    hook::SideEffect,
+    event::LifecycleEventKind, hook::SideEffect, Hook, HookContext, HookDecision, HookFlag,
+    HookFlags, HookMeta,
 };
 
 pub struct DynamicLtv {
@@ -24,7 +23,8 @@ impl DynamicLtv {
             .with(HookFlag::BeforeBorrow)
             .with(HookFlag::AfterDeposit)
             .with(HookFlag::UsesOracle)
-            .with(HookFlag::MutatePayload);
+            .with(HookFlag::MutatePayload)
+            .with(HookFlag::MayReject);
         Self {
             meta: HookMeta {
                 name: "DynamicLTV".into(),
@@ -57,8 +57,7 @@ impl Hook for DynamicLtv {
 
     fn evaluate(&self, ctx: &HookContext<'_>) -> HookDecision {
         let target = self.target_ltv(ctx.event.market.realised_vol_bps);
-        if ctx.event.kind == LifecycleEventKind::BeforeBorrow
-            && ctx.event.position.ltv_bps > target
+        if ctx.event.kind == LifecycleEventKind::BeforeBorrow && ctx.event.position.ltv_bps > target
         {
             return HookDecision::Reject(format!(
                 "DynamicLTV: position LTV {} bps exceeds dynamic cap {} bps (vol {} bps)",

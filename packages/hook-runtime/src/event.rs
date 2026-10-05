@@ -9,9 +9,11 @@ pub struct EventValidationPolicy {
     pub max_event_age_slots: u64,
     pub max_oracle_age_slots: u64,
     pub max_payload_bytes: usize,
+    pub max_instruction_payload_bytes: usize,
     pub max_oracle_points: usize,
     pub max_oracle_confidence_bps: u16,
     pub max_ltv_bps: u16,
+    pub max_liquidation_delay_slots: u64,
 }
 
 impl Default for EventValidationPolicy {
@@ -20,9 +22,11 @@ impl Default for EventValidationPolicy {
             max_event_age_slots: 150,
             max_oracle_age_slots: 150,
             max_payload_bytes: 256,
+            max_instruction_payload_bytes: 256,
             max_oracle_points: 16,
             max_oracle_confidence_bps: 1_000,
             max_ltv_bps: 10_000,
+            max_liquidation_delay_slots: 300,
         }
     }
 }

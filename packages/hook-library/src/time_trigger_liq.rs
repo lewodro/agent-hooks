@@ -2,9 +2,8 @@
 //! Knot: timer hitch. Lets a position wait out brief oracle divergence.
 
 use agent_hooks_runtime::{
-    Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta,
-    event::LifecycleEventKind,
-    hook::SideEffect,
+    event::LifecycleEventKind, hook::SideEffect, Hook, HookContext, HookDecision, HookFlag,
+    HookFlags, HookMeta,
 };
 
 #[derive(Clone, Debug)]
@@ -28,6 +27,7 @@ impl TimeTriggerLiq {
         let flags = HookFlags::empty()
             .with(HookFlag::BeforeLiquidate)
             .with(HookFlag::UsesOracle)
+            .with(HookFlag::MutatePayload)
             .with(HookFlag::MayReject);
         Self {
             meta: HookMeta {
@@ -49,7 +49,7 @@ impl TimeTriggerLiq {
         if self.allowed.is_empty() {
             return true;
         }
-        let seconds_of_day = ((timestamp.rem_euclid(86_400)) as u32);
+        let seconds_of_day = timestamp.rem_euclid(86_400) as u32;
         self.allowed
             .iter()
             .any(|w| seconds_of_day >= w.start_sec && seconds_of_day < w.end_sec)
@@ -124,12 +124,19 @@ mod tests {
     #[test]
     fn rejects_outside_window() {
         let h = TimeTriggerLiq::new(
-            vec![TimeWindow { start_sec: 36_000, end_sec: 64_800 }], // 10:00 - 18:00 UTC
+            vec![TimeWindow {
+                start_sec: 36_000,
+                end_sec: 64_800,
+            }], // 10:00 - 18:00 UTC
             500,
             300,
         );
         let e = evt(64_801, false);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         assert!(matches!(h.evaluate(&ctx), HookDecision::Reject(_)));
     }
 
@@ -137,7 +144,11 @@ mod tests {
     fn delays_when_oracle_stale() {
         let h = TimeTriggerLiq::new(vec![], 500, 300);
         let e = evt(40_000, true);
-        let ctx = HookContext { event: &e, composition_index: 0, composition_total: 1 };
+        let ctx = HookContext {
+            event: &e,
+            composition_index: 0,
+            composition_total: 1,
+        };
         let decision = h.evaluate(&ctx);
         assert!(matches!(
             decision,

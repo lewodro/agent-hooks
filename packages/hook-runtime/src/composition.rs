@@ -8,7 +8,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::event::{EventValidationError, EventValidationPolicy, ExecutionContext, LifecycleEvent};
-use crate::hook::{Hook, HookContext, HookDecision, HookFlag, HookMeta, SideEffect};
+use crate::hook::{Hook, HookContext, HookDecision, HookFlag, HookFlags, HookMeta, SideEffect};
 
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum CompositionError {
@@ -119,6 +119,18 @@ impl Composition {
                     outcome: Outcome::Accepted,
                 }),
                 HookDecision::AcceptWith(side) => {
+                    if let Err(reason) = validate_side_effect(&side, meta.flags, policy) {
+                        trace.entries.push(TraceEntry {
+                            hook_name: meta.name.clone(),
+                            outcome: Outcome::Rejected(reason.clone()),
+                        });
+                        trace.side_effects.clear();
+                        trace.decision = ExecutionDecision::Rejected {
+                            hook_name: meta.name.clone(),
+                            reason,
+                        };
+                        return Ok(trace);
+                    }
                     trace.entries.push(TraceEntry {
                         hook_name: meta.name.clone(),
                         outcome: Outcome::AcceptedWith(side.clone()),
@@ -126,6 +138,19 @@ impl Composition {
                     trace.side_effects.push((meta.name.clone(), side));
                 }
                 HookDecision::Reject(reason) => {
+                    if !meta.flags.contains(HookFlag::MayReject) {
+                        let reason = "hook rejected without declaring MayReject".to_owned();
+                        trace.entries.push(TraceEntry {
+                            hook_name: meta.name.clone(),
+                            outcome: Outcome::Rejected(reason.clone()),
+                        });
+                        trace.side_effects.clear();
+                        trace.decision = ExecutionDecision::Rejected {
+                            hook_name: meta.name.clone(),
+                            reason,
+                        };
+                        return Ok(trace);
+                    }
                     trace.entries.push(TraceEntry {
                         hook_name: meta.name.clone(),
                         outcome: Outcome::Rejected(reason.clone()),
@@ -158,6 +183,58 @@ impl Composition {
                 reason.clone(),
             )),
         }
+    }
+}
+
+fn validate_side_effect(
+    side_effect: &SideEffect,
+    flags: HookFlags,
+    policy: &EventValidationPolicy,
+) -> Result<(), String> {
+    match side_effect {
+        SideEffect::OverrideMaxLtvBps(value) => {
+            require_capability(flags, HookFlag::MutatePayload)?;
+            if *value > policy.max_ltv_bps || *value > 10_000 {
+                return Err(format!(
+                    "maximum LTV {value} bps exceeds configured limit {} bps",
+                    policy.max_ltv_bps
+                ));
+            }
+        }
+        SideEffect::OverrideRateBps(value) => {
+            require_capability(flags, HookFlag::MutatesRate)?;
+            if *value > 10_000 {
+                return Err(format!("rate {value} bps exceeds 10000 bps"));
+            }
+        }
+        SideEffect::DelayLiquidationSlots(value) => {
+            require_capability(flags, HookFlag::MutatePayload)?;
+            if *value > policy.max_liquidation_delay_slots {
+                return Err(format!(
+                    "liquidation delay {value} slots exceeds configured limit {} slots",
+                    policy.max_liquidation_delay_slots
+                ));
+            }
+        }
+        SideEffect::EmitInstruction { payload, .. } => {
+            require_capability(flags, HookFlag::MutatePayload)?;
+            if payload.len() > policy.max_instruction_payload_bytes {
+                return Err(format!(
+                    "instruction payload has {} bytes (maximum {})",
+                    payload.len(),
+                    policy.max_instruction_payload_bytes
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn require_capability(flags: HookFlags, capability: HookFlag) -> Result<(), String> {
+    if flags.contains(capability) {
+        Ok(())
+    } else {
+        Err(format!("hook used {capability:?} without declaring it"))
     }
 }
 
@@ -241,23 +318,27 @@ mod tests {
         }
     }
 
-    struct AcceptWithEffect(HookMeta);
+    struct AcceptWithEffect(HookMeta, SideEffect);
 
     impl Hook for AcceptWithEffect {
         fn meta(&self) -> &HookMeta {
             &self.0
         }
         fn evaluate(&self, _ctx: &HookContext<'_>) -> HookDecision {
-            HookDecision::AcceptWith(SideEffect::OverrideMaxLtvBps(6_000))
+            HookDecision::AcceptWith(self.1.clone())
         }
     }
 
     fn meta(name: &str, flag: HookFlag) -> HookMeta {
+        meta_with_flags(name, HookFlags::empty().with(flag))
+    }
+
+    fn meta_with_flags(name: &str, flags: HookFlags) -> HookMeta {
         HookMeta {
             name: name.into(),
             version: "0.1.0".into(),
             author: "test".into(),
-            flags: HookFlags::empty().with(flag),
+            flags,
             description: "".into(),
         }
     }
@@ -342,11 +423,24 @@ mod tests {
         let comp = CompositionBuilder::new()
             .add(
                 1,
-                Arc::new(AcceptWithEffect(meta("adjust-ltv", HookFlag::BeforeBorrow))),
+                Arc::new(AcceptWithEffect(
+                    meta_with_flags(
+                        "adjust-ltv",
+                        HookFlags::empty()
+                            .with(HookFlag::BeforeBorrow)
+                            .with(HookFlag::MutatePayload),
+                    ),
+                    SideEffect::OverrideMaxLtvBps(6_000),
+                )),
             )
             .add(
                 2,
-                Arc::new(AlwaysReject(meta("deny-borrow", HookFlag::BeforeBorrow))),
+                Arc::new(AlwaysReject(meta_with_flags(
+                    "deny-borrow",
+                    HookFlags::empty()
+                        .with(HookFlag::BeforeBorrow)
+                        .with(HookFlag::MayReject),
+                ))),
             )
             .build()
             .unwrap();
@@ -362,6 +456,83 @@ mod tests {
         assert!(matches!(trace.entries[1].outcome, Outcome::Rejected(_)));
         assert!(matches!(trace.decision, ExecutionDecision::Rejected { .. }));
         assert!(trace.side_effects.is_empty());
+    }
+
+    #[test]
+    fn side_effects_require_capabilities_and_stay_within_policy() {
+        let unprivileged = CompositionBuilder::new()
+            .add(
+                1,
+                Arc::new(AcceptWithEffect(
+                    meta("unprivileged", HookFlag::BeforeBorrow),
+                    SideEffect::OverrideMaxLtvBps(6_000),
+                )),
+            )
+            .build()
+            .unwrap();
+        let trace = unprivileged
+            .evaluate(
+                &dummy_event(LifecycleEventKind::BeforeBorrow),
+                ExecutionContext { current_slot: 0 },
+                &EventValidationPolicy::default(),
+            )
+            .unwrap();
+        assert!(matches!(trace.decision, ExecutionDecision::Rejected { .. }));
+        assert!(trace.rejection_reason().unwrap().contains("MutatePayload"));
+        assert!(trace.side_effects.is_empty());
+
+        let out_of_bounds = CompositionBuilder::new()
+            .add(
+                1,
+                Arc::new(AcceptWithEffect(
+                    meta_with_flags(
+                        "invalid-ltv",
+                        HookFlags::empty()
+                            .with(HookFlag::BeforeBorrow)
+                            .with(HookFlag::MutatePayload),
+                    ),
+                    SideEffect::OverrideMaxLtvBps(10_001),
+                )),
+            )
+            .build()
+            .unwrap();
+        let trace = out_of_bounds
+            .evaluate(
+                &dummy_event(LifecycleEventKind::BeforeBorrow),
+                ExecutionContext { current_slot: 0 },
+                &EventValidationPolicy::default(),
+            )
+            .unwrap();
+        assert!(trace
+            .rejection_reason()
+            .unwrap()
+            .contains("exceeds configured limit"));
+        assert!(trace.side_effects.is_empty());
+    }
+
+    #[test]
+    fn rejection_requires_may_reject_capability() {
+        let comp = CompositionBuilder::new()
+            .add(
+                1,
+                Arc::new(AlwaysReject(meta(
+                    "undeclared-reject",
+                    HookFlag::BeforeBorrow,
+                ))),
+            )
+            .build()
+            .unwrap();
+        let trace = comp
+            .evaluate(
+                &dummy_event(LifecycleEventKind::BeforeBorrow),
+                ExecutionContext { current_slot: 0 },
+                &EventValidationPolicy::default(),
+            )
+            .unwrap();
+        assert_eq!(
+            trace.rejection_reason(),
+            Some("hook rejected without declaring MayReject")
+        );
     }
 
     #[test]
