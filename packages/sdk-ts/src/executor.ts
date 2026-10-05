@@ -32,6 +32,15 @@ const ADAPTER_BYTE = {
 
 export type AdapterName = keyof typeof ADAPTER_BYTE;
 
+/** Reject the repository placeholder before a client can construct transaction methods. */
+export function assertConfiguredExecutorProgramId(programId: PublicKey): void {
+  if (programId.equals(DEFAULT_AGENT_HOOKS_EXECUTOR_ID)) {
+    throw new Error(
+      "agent-hooks executor programId must be configured explicitly; the repository default is a placeholder",
+    );
+  }
+}
+
 export class ExecutorClient {
   readonly program: Program;
   readonly provider: AnchorProvider;
@@ -55,6 +64,7 @@ export class ExecutorClient {
       commitment: "confirmed",
     });
     this.programId = opts.programId ?? DEFAULT_AGENT_HOOKS_EXECUTOR_ID;
+    assertConfiguredExecutorProgramId(this.programId);
     this.program = new Program(
       { ...opts.idl, address: this.programId.toBase58() },
       this.provider,
