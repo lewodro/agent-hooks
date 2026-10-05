@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import type { LifecycleEvent } from "@agent-hooks/sdk";
 
 export type EvidenceChannel = "simulation" | "operator" | "chain" | "unknown";
@@ -71,6 +72,54 @@ export interface ExperienceQuery {
 export interface ExperienceStore {
   append(experience: Experience): Promise<void>;
   query(query: ExperienceQuery): Promise<Experience[]>;
+}
+
+export class ExperienceIdConflictError extends Error {
+  constructor(public readonly experienceId: string) {
+    super(`experience ID ${experienceId} already exists with different content`);
+    this.name = "ExperienceIdConflictError";
+  }
+}
+
+/** Bounded in-process store for local agents, tests, and development. Not durable. */
+export class MemoryExperienceStore implements ExperienceStore {
+  private readonly records = new Map<string, Experience>();
+
+  constructor(private readonly maxRecords = 10_000) {
+    if (!Number.isSafeInteger(maxRecords) || maxRecords < 1 || maxRecords > 1_000_000) {
+      throw new RangeError("maxRecords must be a safe integer between 1 and 1000000");
+    }
+  }
+
+  async append(experience: Experience): Promise<void> {
+    const existing = this.records.get(experience.id);
+    if (existing) {
+      if (isDeepStrictEqual(existing, experience)) return;
+      throw new ExperienceIdConflictError(experience.id);
+    }
+
+    this.records.set(experience.id, deepFreeze(structuredClone(experience)));
+    if (this.records.size > this.maxRecords) {
+      const oldest = this.records.keys().next();
+      if (!oldest.done) this.records.delete(oldest.value);
+    }
+  }
+
+  async query(query: ExperienceQuery): Promise<Experience[]> {
+    const requestedLimit = query.limit ?? 20;
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 200)
+      : 20;
+    return [...this.records.values()]
+      .filter((record) =>
+        (query.adapter === undefined || record.event.adapter === query.adapter) &&
+        (query.kind === undefined || record.event.kind === query.kind) &&
+        (query.compositionId === undefined || record.feedback.compositionId === query.compositionId) &&
+        (!query.verifiedOnly || isMarkedVerifiedChainOutcome(record.evidence)),
+      )
+      .sort((left, right) => right.observedAt.localeCompare(left.observedAt))
+      .slice(0, limit);
+  }
 }
 
 export interface ExperienceSubscriptionOptions {

@@ -4,7 +4,9 @@ import test from "node:test";
 import type { LifecycleEvent } from "@agent-hooks/sdk";
 import {
   AgentBrain,
+  ExperienceIdConflictError,
   ExperienceNotificationError,
+  MemoryExperienceStore,
   type Experience,
   type ExperienceQuery,
   type ExperienceStore,
@@ -177,4 +179,66 @@ test("rejects malformed rewards and unidentifiable confirmed evidence", async ()
     }),
     /rewardUnit is required/,
   );
+});
+
+test("memory store is idempotent, immutable, filtered, and bounded", async () => {
+  const store = new MemoryExperienceStore(2);
+  const brain = new AgentBrain(store);
+  const first = await brain.observe({
+    id: "first",
+    observedAt: "2026-01-01T00:00:00.000Z",
+    event: event(),
+    feedback,
+    tags: [],
+    evidence: {
+      channel: "chain",
+      status: "confirmed",
+      network: "solana-devnet",
+      transactionId: "sig-first",
+      slot: 10,
+    },
+  });
+
+  await store.append(first);
+  assert.equal((await brain.recall()).length, 1, "appending the same record is idempotent");
+  await assert.rejects(
+    brain.observe({
+      id: "first",
+      observedAt: first.observedAt,
+      event: event(),
+      feedback: { ...feedback, reward: 0.1 },
+      tags: [],
+      evidence: first.evidence,
+      trace: first.trace,
+    }),
+    ExperienceIdConflictError,
+  );
+
+  await brain.observe({
+    id: "second",
+    observedAt: "2026-01-02T00:00:00.000Z",
+    event: event(),
+    feedback: { ...feedback, compositionId: "other-composition" },
+    tags: [],
+  });
+  await brain.observe({
+    id: "third",
+    observedAt: "2026-01-03T00:00:00.000Z",
+    event: event(),
+    feedback,
+    tags: [],
+  });
+
+  assert.deepEqual((await brain.recall()).map(({ id }) => id), ["third", "second"]);
+  assert.deepEqual(
+    (await brain.recall({ compositionId: "sol-usdc-v1" })).map(({ id }) => id),
+    ["third"],
+  );
+  assert.deepEqual((await brain.recall({ verifiedOnly: true })).map(({ id }) => id), []);
+  assert.equal(Object.isFrozen((await brain.recall())[0]), true);
+});
+
+test("memory store rejects unsafe capacities", () => {
+  assert.throws(() => new MemoryExperienceStore(0), /maxRecords/);
+  assert.throws(() => new MemoryExperienceStore(Number.MAX_SAFE_INTEGER + 1), /maxRecords/);
 });

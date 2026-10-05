@@ -8,6 +8,8 @@ Rewards must be finite and include a `rewardUnit` (for example, `normalized_0_1`
 
 The storage interface is deliberately replaceable. Implementations should append idempotently by `Experience.id`, preserve the immutable record, and apply query filters (including `verifiedOnly`) before limiting results. Durable writes should happen before records are made available for retrieval.
 
+`MemoryExperienceStore` is the included bounded in-process implementation for local development and tests. It defaults to 10,000 records, caps query results at 200, keeps records immutable, and evicts the oldest appended record when full. It is volatile: use a durable `ExperienceStore` implementation for production agents or any treasury-related workflow.
+
 `brain.subscribe(listener, options)` delivers each newly persisted experience to in-process consumers, with awaited delivery and a maximum of 64 listeners. This is a low-latency local fan-out primitive, not a cross-process event broker. If a listener fails, `observe()` throws `ExperienceNotificationError` after the record has already been stored; retry with the same ID and make consumers idempotent because delivery is at-least-once.
 
 ```ts
