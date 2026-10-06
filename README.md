@@ -62,9 +62,10 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 | Package | Responsibility | Interfaces with |
 | --- | --- | --- |
 | `@agent-hooks/sdk` (`packages/sdk-ts`) | TypeScript orchestration: compose hooks, simulate, and build executor instructions | Adapters, Anchor IDL, CLI, agent-brain |
-| `@agent-hooks/adapter-core` | Shared normalized lifecycle and pool snapshot contracts for protocol adapters | Marginfi, Kamino, Solend, SDK |
+| `@agent-hooks/contracts` | Protocol-independent lifecycle event and snapshot contracts; no protocol client dependency | Adapter-core, SDK, agent-brain, alternate hosts |
+| `@agent-hooks/adapter-core` | Lending adapter interfaces and shared pool metrics built on the contract package | Marginfi, Kamino, Solend, SDK |
 | `hook-runtime` (`packages/hook-runtime`) | Rust lifecycle event model, deterministic hook composition, traces, and simulation | Hook library and on-chain integrations |
-| `agent-brain` (`packages/agent-brain`) | Schema-validated experience memory with bigint-safe PostgreSQL persistence, bounded cursor replay, local subscriptions, and explicit provenance; no model training included | Normalized adapter-core event contract and agent planners; independent of SDK orchestration |
+| `agent-brain` (`packages/agent-brain`) | Schema-validated experience memory with bigint-safe PostgreSQL persistence, bounded cursor replay, local subscriptions, and explicit provenance; no model training included | Protocol-independent event contracts and agent planners; independent of adapters and SDK orchestration |
 | `anchor-program` (`packages/anchor-program`) | Anchor 0.31 registry prototype plus `agent-hooks-policy` slippage/cooldown CPI gate example | Solana programs and SDK clients |
 | `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals, policy validation, and content-bound operator approvals | Brains, simulators, CLI, and operator approval flows |
 | `@agent-hooks/toolkit` (`packages/toolkit`) | Standalone TypeScript hooks, experience memory, X workflow, and treasury review primitives | Independent agent applications; no required runtime dependencies |

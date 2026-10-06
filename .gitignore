@@ -24,3 +24,9 @@ internal-digest/*audit*
 internal-digest/**/*audit*
 internal-digest/**/*.log
 internal-digest/**/*.jsonl
+
+AGENTS.md
+
+agents.md
+
+CLAUDE.md

@@ -56,6 +56,9 @@ importers:
 
   packages/adapter-core:
     dependencies:
+      '@agent-hooks/contracts':
+        specifier: workspace:*
+        version: link:../contracts
       '@solana/web3.js':
         specifier: ^1.95.4
         version: 1.99.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -72,9 +75,9 @@ importers:
 
   packages/agent-brain:
     dependencies:
-      '@agent-hooks/adapter-core':
+      '@agent-hooks/contracts':
         specifier: workspace:*
-        version: link:../adapter-core
+        version: link:../contracts
     devDependencies:
       '@types/node':
         specifier: ^22.10.5
@@ -97,6 +100,15 @@ importers:
       tsx:
         specifier: ^4.19.2
         version: 4.23.15
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  packages/contracts:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.5
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
