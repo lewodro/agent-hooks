@@ -3,7 +3,6 @@
 ![Build](https://github.com/lewodro/agent-hooks/actions/workflows/ci.yml/badge.svg?branch=main)
 ![Anchor](https://img.shields.io/badge/Anchor-0.31.1-00E5FF)
 ![License](https://img.shields.io/badge/license-MIT-00FF66)
-[![Domain](https://img.shields.io/badge/domain-agenthooks.io-1E293B)](https://agenthooks.io)
 ![X agent](https://img.shields.io/badge/X%20agent-local%20prototype-1E293B)
 
 Agent Hooks is an open-source, real-time execution and experience framework for agents on X, Moltbook and other digital worlds. It separates **The Mind**—planning and learning from verified outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary.
