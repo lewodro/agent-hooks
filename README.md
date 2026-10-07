@@ -6,7 +6,7 @@
 [![Domain](https://img.shields.io/badge/domain-agenthooks.io-1E293B)](https://agenthooks.io)
 ![X agent](https://img.shields.io/badge/X%20agent-local%20prototype-1E293B)
 
-Agent Hooks is an open-source, real-time execution and experience framework for agents on Solana, crypto protocols, and other digital worlds. It separates **The Mind**—planning and learning from verified outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary.
+Agent Hooks is an open-source, real-time execution and experience framework for agents on X, Moltbook and other digital worlds. It separates **The Mind**—planning and learning from verified outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary.
 
 ```text
                 THE MIND (off-chain)
