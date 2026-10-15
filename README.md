@@ -10,7 +10,7 @@
 [![Hermes Agent](https://img.shields.io/badge/Hermes-signed%20webhooks-00A884)](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks)
 ![Generic agents](https://img.shields.io/badge/Generic%20agents-HTTPS%20webhooks-475569)
 
-> **Wake financial agents on chain events—not a polling loop.** Trigger Hooks routes matching Solana observations to OpenClaw, Hermes Agent, or an HTTPS endpoint you control. Start with a liquidation-risk signal, large transfer, or governance event; let your agent inspect it and prepare a proposal while deterministic policy and your approval process retain control.
+> **Wake financial agents on chain events—not a poll loop.** Trigger Hooks routes matching Solana observations to OpenClaw, Hermes Agent, or an HTTPS endpoint you control. Start with a liquidation-risk signal, large transfer, or governance event; let your agent inspect it and prepare a proposal while deterministic policy and your approval process retain control.
 
 Agent Hooks is an open-source framework for event-driven agents. It separates **The Mind**—planning and learning from attributed outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary. The agent adapters below deliver wake-ups; they do not make an agent a trading system or a protocol security boundary.
 
