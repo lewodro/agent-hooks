@@ -17,10 +17,13 @@ Agent Hooks is an open-source, real-time execution and experience framework for 
                                        │
                                        └── propose allow / reject / bounded effects
 
- Today: Anchor registry records eligibility receipts; protocol hook CPI is not wired.
+ Trigger Hooks: verified chain observation ──> durable wake ──> off-chain agent
+ Today: Solana ingress primitives exist; protocol decoders, durable queue, and protocol hook CPI are not wired.
 ```
 
 The loop is continuous: observe an event, evaluate deterministic guards, record the later outcome, retrieve relevant experience, and propose the next version. Model output is never itself an execution guardrail.
+
+For on-chain-to-agent activation, [`@agent-hooks/trigger-hooks`](packages/trigger-hooks/README.md) provides Solana RPC log subscriptions, HMAC-signed webhook verification, deterministic predicates, and replay-safe in-memory deduplication. It wakes a host-owned worker; it does not decode every protocol, operate a queue, sign, or broadcast.
 
 The framework keeps execution, memory, and planning as separate interfaces. Protocol adapters normalize events; the SDK and Rust runtime compose, simulate, and evaluate hooks; the Anchor program provides an on-chain composition registry and an early eligibility executor; `agent-brain` stores event and outcome experience; and agent integrations create proposals through policy checks before an operator approves changes.
 
@@ -71,6 +74,7 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 | `@agent-hooks/marginfi-adapter` | Marginfi event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/kamino-adapter` | Kamino Lend event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/solend-adapter` | Solend event and market normalization | SDK and hook-runtime |
+| `@agent-hooks/trigger-hooks` | Solana log/webhook ingress, trigger matching, and agent wake boundary | RPC/indexer source, protocol decoders, agent queue |
 | `@agent-hooks/cli` | Create, inspect, simulate, and print deployment plans | SDK and agent-runtime |
 | `agent-hooks-vscode` (`packages/vscode-extension`) | Composition visualization, simulation, and deployment-plan tooling | SDK |
 
