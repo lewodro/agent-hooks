@@ -153,6 +153,26 @@ function validateObservation(observation: ChainObservation): void {
   }
   if (observation.slot < 0n) throw new Error("observation slot cannot be negative");
   if (!Number.isFinite(Date.parse(observation.receivedAt))) throw new Error("observation receivedAt must be a valid date");
+  if (observation.financeAlert) validateFinanceAlert(observation.financeAlert);
+}
+
+function validateFinanceAlert(alert: FinanceAlertContext): void {
+  if (!["liquidation_risk", "whale_movement", "dao_proposal", "price_move", "custom"].includes(alert.category)) {
+    throw new Error("finance alert category is unsupported");
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/.test(alert.network)) throw new Error("finance alert network is invalid");
+  if (!["info", "warning", "critical"].includes(alert.severity)) throw new Error("finance alert severity is invalid");
+  if ((alert.assetSymbols?.length ?? 0) > 64 || alert.assetSymbols?.some((asset) => !asset.trim() || asset.length > 32)) {
+    throw new Error("finance alert asset symbols must be 1-32 characters, with at most 64 assets");
+  }
+  const entries = Object.entries(alert.metrics ?? {});
+  if (entries.length > 64) throw new Error("finance alert supports at most 64 metrics");
+  for (const [key, value] of entries) {
+    if (!/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(key)) throw new Error("finance alert metric name is invalid");
+    if (typeof value === "number" && !Number.isFinite(value)) throw new Error(`finance alert metric ${key} must be finite`);
+    if (typeof value === "string" && value.length > 256) throw new Error(`finance alert metric ${key} is too long`);
+  }
+  if (alert.title !== undefined && alert.title.length > 256) throw new Error("finance alert title is too long");
 }
 
 function validateTriggerDefinition(trigger: TriggerDefinition): void {
