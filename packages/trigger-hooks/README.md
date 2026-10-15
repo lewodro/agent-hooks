@@ -1,17 +1,99 @@
 # `@agent-hooks/trigger-hooks`
 
-Solana-first ingress and trigger primitives for waking an idle off-chain agent when a chain observation matches a configured condition.
+Solana-first event ingress and TypeScript adapters for waking an off-chain agent when a verified observation matches a deterministic trigger.
+
+| Target | Adapter | Transport |
+| --- | --- | --- |
+| [OpenClaw Gateway](https://docs.openclaw.ai/gateway/config-hooks) | `@agent-hooks/trigger-hooks/openclaw` | Bearer-authenticated `/hooks/wake` |
+| [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks) | `@agent-hooks/trigger-hooks/hermes` | Signed Generic V2 webhook |
+| LangGraph, CrewAI, custom worker | `@agent-hooks/trigger-hooks/webhook` | HTTPS JSON, optional bearer token and HMAC |
+
+These are outbound dispatchers: configure the receiving endpoint on your own agent host. LangGraph and CrewAI are webhook-compatible examples, not bundled framework plugins.
+
+## Install
+
+The package is configured for public npm publication, but has not been published yet. For development inside this repository:
+
+```bash
+pnpm install
+pnpm --filter @agent-hooks/trigger-hooks build
+```
+
+After a release, install with `npm install @agent-hooks/trigger-hooks`. The package requires Node.js 22 or newer. Its Solana event types import `@agent-hooks/contracts`, which is currently a workspace dependency; publishing/releasing this package requires that dependency to be independently resolvable from npm.
+
+## Choose an agent dispatcher
 
 ```ts
-const engine = new TriggerEngine({
-  triggers: [{
-    id: "liquidation-risk",
-    predicate: { eventKinds: ["beforeLiquidate"], minLtvBps: 8_000 },
-  }],
-  dispatcher: { wake: async ({ observation }) => queueAgentRun(observation) },
+import { createOpenClawDispatcher } from "@agent-hooks/trigger-hooks/openclaw";
+
+const openclaw = createOpenClawDispatcher({
+  gatewayUrl: process.env.OPENCLAW_GATEWAY_URL!,
+  token: process.env.OPENCLAW_HOOK_TOKEN!,
+  agentId: "finance-reviewer",
+  mode: "now",
 });
 ```
 
-`SolanaLogSource` listens to a program through `Connection.onLogs`. `parseSignedWebhook` verifies an HMAC webhook before accepting it. `TriggerEngine` rejects unverified observations, matches deterministic predicates, and deduplicates by trigger/source/signature. The dispatcher is deliberately an application boundary: this package does not run a model, sign a transaction, or broadcast a transaction.
+Or configure Hermes:
 
-Important limitation: RPC logs authenticate the subscribed program and transaction, but they do not decode protocol-specific events. A Marginfi, Kamino, Solend, or indexer decoder must turn logs/account changes into the shared `LifecycleEvent` contract and validate the source accounts before risk predicates such as LTV are trusted. `MemoryDedupeStore` is for tests; production workers need a durable atomic claim store and a replay cursor.
+```ts
+import { createHermesDispatcher } from "@agent-hooks/trigger-hooks/hermes";
+
+const hermes = createHermesDispatcher({
+  gatewayUrl: process.env.HERMES_GATEWAY_URL!,
+  route: "finance-review",
+  secret: process.env.HERMES_WEBHOOK_SECRET!,
+});
+```
+
+Or send to your own worker endpoint:
+
+```ts
+import { createWebhookDispatcher } from "@agent-hooks/trigger-hooks/webhook";
+
+const customAgent = createWebhookDispatcher({
+  url: process.env.AGENT_WAKE_URL!,
+  bearerToken: process.env.AGENT_WAKE_TOKEN,
+  hmacSecret: process.env.AGENT_WAKE_HMAC_SECRET,
+});
+```
+
+Use exactly one dispatcher as the `TriggerEngine`'s `dispatcher`. URLs must use HTTPS except for loopback development addresses. Never commit tokens or webhook secrets.
+
+## Match and deliver a trigger
+
+```ts
+import {
+  MemoryDedupeStore,
+  TriggerEngine,
+  type ChainObservation,
+} from "@agent-hooks/trigger-hooks";
+import { createOpenClawDispatcher } from "@agent-hooks/trigger-hooks/openclaw";
+
+const engine = new TriggerEngine({
+  triggers: [{
+    id: "liquidation-review",
+    predicate: { eventKinds: ["beforeLiquidate"], minLtvBps: 8_000 },
+  }],
+  dispatcher: createOpenClawDispatcher({
+    gatewayUrl: process.env.OPENCLAW_GATEWAY_URL!,
+    token: process.env.OPENCLAW_HOOK_TOKEN!,
+  }),
+  // Demo only. Supply an atomic durable store in a multi-process deployment.
+  dedupe: new MemoryDedupeStore(),
+});
+
+declare const verifiedObservation: ChainObservation; // produced by your trusted observer/decoder
+await engine.ingest(verifiedObservation);
+```
+
+`TriggerEngine` rejects observations unless `sourceVerified` is true, checks deterministic predicates, and uses the injected dedupe store before calling the dispatcher. The boolean is an assertion supplied by the host—not a cryptographic proof. `SolanaLogSource` filters logs for a subscribed program but does not decode Marginfi/Kamino/Solend events or independently verify account ownership, whale transfer meaning, or DAO proposal state.
+
+## Delivery and trust boundaries
+
+- Delivery is at-least-once, not exactly-once. A failed dispatch releases its dedupe claim so the host can retry; the receiving worker must be idempotent.
+- `MemoryDedupeStore` is process-local and volatile. Production requires a durable atomic claim store, replay cursor, queue, retry/dead-letter policy, and monitoring. These are host responsibilities, not included components today.
+- HMAC authenticates payload integrity between parties that share the secret; it does not establish source-chain truth. Validate RPC/indexer results and decode protocol events before creating trusted observations.
+- A wake asks an agent to inspect an event. Keep the agent's analysis tools separate from signing authority; proposal, simulation, policy, human approval, and transaction execution belong in separately controlled services.
+
+See the repository's [Trigger Hooks integration guide](../../docs/trigger-hooks.md), [architecture](../../docs/architecture.md), and [security assumptions](../../docs/security.md).
