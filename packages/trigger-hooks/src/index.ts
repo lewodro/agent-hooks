@@ -39,6 +39,8 @@ export interface ChainObservation {
   programId: string;
   logs?: readonly string[];
   event?: LifecycleEvent;
+  /** Optional host-decoded finance signal for alert categories beyond lending lifecycle events. */
+  financeAlert?: FinanceAlertContext;
   sourceVerified: boolean;
   receivedAt: string;
 }
