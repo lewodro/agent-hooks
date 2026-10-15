@@ -9,6 +9,26 @@ export type { HermesDispatcherOptions } from "./hermes.js";
 export { createWebhookDispatcher } from "./webhook.js";
 export type { WebhookDispatcherOptions } from "./webhook.js";
 
+/** Built-in finance alert labels; hosts may also emit `custom` with their own metric keys. */
+export type FinanceAlertCategory =
+  | "liquidation_risk"
+  | "whale_movement"
+  | "dao_proposal"
+  | "price_move"
+  | "custom";
+
+export type FinanceAlertSeverity = "info" | "warning" | "critical";
+
+/** Host-normalized signal. It carries context; it is not a verified protocol fact by itself. */
+export interface FinanceAlertContext {
+  category: FinanceAlertCategory;
+  network: string;
+  severity: FinanceAlertSeverity;
+  assetSymbols?: readonly string[];
+  metrics?: Readonly<Record<string, number | string | boolean>>;
+  title?: string;
+}
+
 export interface ChainObservation {
   chain: "solana";
   source: "rpc-logs" | "webhook";
