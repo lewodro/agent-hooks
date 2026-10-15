@@ -1,6 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Connection, PublicKey, type Commitment, type Logs } from "@solana/web3.js";
+import { Connection, PublicKey, type Finality, type Logs } from "@solana/web3.js";
 import type { LifecycleEvent, LifecycleEventKind } from "@agent-hooks/contracts";
+
+export { createOpenClawDispatcher, formatWakeText } from "./openclaw.js";
+export type { OpenClawDispatcherOptions } from "./openclaw.js";
 
 export interface ChainObservation {
   chain: "solana";
@@ -106,13 +109,13 @@ function matches(predicate: TriggerPredicate, observation: ChainObservation): bo
 export interface RpcLogSourceOptions {
   connection: Connection;
   programId: PublicKey;
-  commitment?: Commitment;
+  commitment?: Finality;
   onObservation: (observation: ChainObservation) => Promise<void>;
 }
 
 /** RPC log source. It authenticates the subscribed program, but does not decode protocol events. */
 export class SolanaLogSource {
-  private subscriptionId?: number;
+  private subscriptionId: number | undefined;
 
   constructor(private readonly options: RpcLogSourceOptions) {}
 
@@ -185,9 +188,52 @@ export function parseSignedWebhook(
   if (!headers.signature || !headers.timestamp || !verifySignedWebhook(body, headers.signature, headers.timestamp, options)) {
     throw new Error("invalid or expired webhook signature");
   }
-  const observation = JSON.parse(body) as ChainObservation;
-  if (observation.chain !== "solana" || observation.source !== "webhook" || !observation.signature) {
+  const parsed = JSON.parse(body) as Record<string, unknown>;
+  if (parsed.chain !== "solana" || parsed.source !== "webhook" || typeof parsed.signature !== "string") {
     throw new Error("webhook payload is not a valid Solana observation");
   }
-  return { ...observation, sourceVerified: true };
+  if (typeof parsed.sourceId !== "string" || typeof parsed.programId !== "string" || typeof parsed.receivedAt !== "string") {
+    throw new Error("webhook payload is missing observation identifiers");
+  }
+  const slot = exactInteger(parsed.slot, "slot");
+  return {
+    chain: "solana",
+    source: "webhook",
+    sourceId: parsed.sourceId,
+    signature: parsed.signature,
+    slot,
+    blockTime: typeof parsed.blockTime === "number" ? parsed.blockTime : null,
+    programId: parsed.programId,
+    sourceVerified: true,
+    receivedAt: parsed.receivedAt,
+    ...(Array.isArray(parsed.logs) ? { logs: parsed.logs.filter((item): item is string => typeof item === "string") } : {}),
+    ...(parsed.event ? { event: decodeLifecycleEvent(parsed.event) } : {}),
+  };
+}
+
+function exactInteger(value: unknown, label: string): bigint {
+  if ((typeof value !== "string" && typeof value !== "number") || !/^\d+$/.test(String(value))) {
+    throw new Error(`${label} must be an unsigned integer string or number`);
+  }
+  return BigInt(value);
+}
+
+function decodeLifecycleEvent(value: unknown): LifecycleEvent {
+  const event = value as LifecycleEvent & { market: LifecycleEvent["market"] & { slot: string | number; oraclePoints: Array<LifecycleEvent["market"]["oraclePoints"][number] & { slot: string | number; priceE8: string | number; confidenceE8: string | number }> } };
+  if (!event || typeof event !== "object" || !event.market || !Array.isArray(event.market.oraclePoints)) {
+    throw new Error("webhook lifecycle event is malformed");
+  }
+  return {
+    ...event,
+    market: {
+      ...event.market,
+      slot: exactInteger(event.market.slot, "event.market.slot"),
+      oraclePoints: event.market.oraclePoints.map((point, index) => ({
+        ...point,
+        slot: exactInteger(point.slot, `event.market.oraclePoints[${index}].slot`),
+        priceE8: exactInteger(point.priceE8, `event.market.oraclePoints[${index}].priceE8`),
+        confidenceE8: exactInteger(point.confidenceE8, `event.market.oraclePoints[${index}].confidenceE8`),
+      })),
+    },
+  };
 }

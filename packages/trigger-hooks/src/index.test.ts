@@ -21,7 +21,7 @@ describe("TriggerEngine", () => {
     const engine = new TriggerEngine({
       triggers: [{ id: "whale", predicate: { programIds: [observation.programId] } }],
       dedupe: new MemoryDedupeStore(),
-      dispatcher: { wake: async ({ trigger }) => wakes.push(trigger.id) },
+      dispatcher: { wake: async ({ trigger }) => { wakes.push(trigger.id); } },
     });
     assert.equal((await engine.ingest(observation)).length, 1);
     assert.equal((await engine.ingest(observation)).length, 0);
@@ -31,7 +31,7 @@ describe("TriggerEngine", () => {
 
 describe("signed webhooks", () => {
   it("requires a fresh HMAC signature", () => {
-    const body = JSON.stringify(observation);
+    const body = JSON.stringify({ ...observation, slot: observation.slot.toString() });
     const timestamp = "1700000000";
     const signature = `sha256=${createHmac("sha256", "secret").update(`${timestamp}.${body}`).digest("hex")}`;
     assert.equal(parseSignedWebhook(body, { signature, timestamp }, { secret: "secret", nowSeconds: () => 1700000001 }).sourceVerified, true);
