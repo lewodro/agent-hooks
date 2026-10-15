@@ -102,6 +102,19 @@ describe("TriggerEngine", () => {
       dispatcher: { wake: async () => undefined },
     }), /0 to 10000 bps/);
   });
+
+  it("rejects malformed host-provided alert metrics", async () => {
+    const engine = new TriggerEngine({ triggers: [], dispatcher: { wake: async () => undefined } });
+    await assert.rejects(engine.ingest({
+      ...observation,
+      financeAlert: {
+        category: "whale_movement",
+        network: "solana-mainnet",
+        severity: "warning",
+        metrics: { amountUsd: Number.POSITIVE_INFINITY },
+      },
+    }), /must be finite/);
+  });
 });
 
 describe("signed webhooks", () => {
