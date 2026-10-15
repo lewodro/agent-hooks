@@ -50,6 +50,7 @@ export interface TriggerPredicate {
   signatures?: readonly string[];
   alertCategories?: readonly FinanceAlertCategory[];
   networks?: readonly string[];
+  assetSymbols?: readonly string[];
   eventKinds?: readonly LifecycleEventKind[];
   adapters?: readonly LifecycleEvent["adapter"][];
   minLtvBps?: number;
@@ -146,10 +147,12 @@ function validateObservation(observation: ChainObservation): void {
 }
 
 function matches(predicate: TriggerPredicate, observation: ChainObservation): boolean {
+  const expectedAssets = predicate.assetSymbols?.map((asset) => asset.toLowerCase());
   if (predicate.programIds && !predicate.programIds.includes(observation.programId)) return false;
   if (predicate.signatures && !predicate.signatures.includes(observation.signature)) return false;
   if (predicate.alertCategories && (!observation.financeAlert || !predicate.alertCategories.includes(observation.financeAlert.category))) return false;
   if (predicate.networks && (!observation.financeAlert || !predicate.networks.includes(observation.financeAlert.network))) return false;
+  if (expectedAssets && !observation.financeAlert?.assetSymbols?.some((asset) => expectedAssets.includes(asset.toLowerCase()))) return false;
   const event = observation.event;
   if (predicate.eventKinds && (!event || !predicate.eventKinds.includes(event.kind))) return false;
   if (predicate.adapters && (!event || !predicate.adapters.includes(event.adapter))) return false;
