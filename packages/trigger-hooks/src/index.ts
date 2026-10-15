@@ -51,6 +51,7 @@ export interface TriggerPredicate {
   alertCategories?: readonly FinanceAlertCategory[];
   networks?: readonly string[];
   assetSymbols?: readonly string[];
+  minimumSeverity?: FinanceAlertSeverity;
   eventKinds?: readonly LifecycleEventKind[];
   adapters?: readonly LifecycleEvent["adapter"][];
   minLtvBps?: number;
@@ -153,12 +154,17 @@ function matches(predicate: TriggerPredicate, observation: ChainObservation): bo
   if (predicate.alertCategories && (!observation.financeAlert || !predicate.alertCategories.includes(observation.financeAlert.category))) return false;
   if (predicate.networks && (!observation.financeAlert || !predicate.networks.includes(observation.financeAlert.network))) return false;
   if (expectedAssets && !observation.financeAlert?.assetSymbols?.some((asset) => expectedAssets.includes(asset.toLowerCase()))) return false;
+  if (predicate.minimumSeverity && (!observation.financeAlert || severityRank(observation.financeAlert.severity) < severityRank(predicate.minimumSeverity))) return false;
   const event = observation.event;
   if (predicate.eventKinds && (!event || !predicate.eventKinds.includes(event.kind))) return false;
   if (predicate.adapters && (!event || !predicate.adapters.includes(event.adapter))) return false;
   if (predicate.minLtvBps !== undefined && (!event || event.position.ltvBps < predicate.minLtvBps)) return false;
   if (predicate.maxLtvBps !== undefined && (!event || event.position.ltvBps > predicate.maxLtvBps)) return false;
   return true;
+}
+
+function severityRank(severity: FinanceAlertSeverity): number {
+  return severity === "critical" ? 2 : severity === "warning" ? 1 : 0;
 }
 
 export interface RpcLogSourceOptions {
