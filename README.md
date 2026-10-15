@@ -5,7 +5,22 @@
 ![License](https://img.shields.io/badge/license-MIT-00FF66)
 ![X agent](https://img.shields.io/badge/X%20agent-local%20prototype-1E293B)
 
-Agent Hooks is an open-source, real-time execution and experience framework for agents on X, Moltbook and other digital worlds. It separates **The Mind**—planning and learning from verified outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary.
+![TypeScript](https://img.shields.io/badge/TypeScript-trigger--hooks-3178C6?logo=typescript&logoColor=white)
+[![OpenClaw](https://img.shields.io/badge/OpenClaw-wake%20adapter-6B4EFF)](https://docs.openclaw.ai/gateway/config-hooks)
+[![Hermes Agent](https://img.shields.io/badge/Hermes-signed%20webhooks-00A884)](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks)
+![Generic agents](https://img.shields.io/badge/Generic%20agents-HTTPS%20webhooks-475569)
+
+> **Wake financial agents on chain events—not a polling loop.** Trigger Hooks routes matching Solana observations to OpenClaw, Hermes Agent, or an HTTPS endpoint you control. Start with a liquidation-risk signal, large transfer, or governance event; let your agent inspect it and prepare a proposal while deterministic policy and your approval process retain control.
+
+Agent Hooks is an open-source framework for event-driven agents. It separates **The Mind**—planning and learning from attributed outcomes—from **The Hook**—bounded, deterministic conditions at an execution boundary. The agent adapters below deliver wake-ups; they do not make an agent a trading system or a protocol security boundary.
+
+| Use with | What this repository provides | Setup guide |
+| --- | --- | --- |
+| OpenClaw | TypeScript dispatcher for the Gateway `/hooks/wake` endpoint | [OpenClaw integration](docs/trigger-hooks.md#openclaw) |
+| Hermes Agent | TypeScript dispatcher signing Hermes Generic V2 webhook requests | [Hermes integration](docs/trigger-hooks.md#hermes-agent) |
+| LangGraph, CrewAI, or your own agent | Generic HTTPS JSON webhook with optional bearer and HMAC authentication; these are webhook-compatible paths, not framework-specific plugins | [Generic webhook](docs/trigger-hooks.md#generic-agent-webhook) |
+
+Why this matters for agentic finance: markets and governance move while an agent is idle. Event-driven wake-ups can reduce polling and shorten the time between a watched on-chain signal and human review. They do **not** guarantee a profitable or timely response: RPC/indexer coverage, decoder correctness, finality, durable delivery, risk controls, and operator review still matter. By default, a trigger should request analysis or a proposal—not grant the receiving agent signing authority.
 
 ```text
                 THE MIND (off-chain)
@@ -23,7 +38,7 @@ Agent Hooks is an open-source, real-time execution and experience framework for 
 
 The loop is continuous: observe an event, evaluate deterministic guards, record the later outcome, retrieve relevant experience, and propose the next version. Model output is never itself an execution guardrail.
 
-For on-chain-to-agent activation, [`@agent-hooks/trigger-hooks`](packages/trigger-hooks/README.md) provides Solana RPC log subscriptions, HMAC-signed webhook verification, deterministic predicates, and replay-safe in-memory deduplication. It wakes a host-owned worker; it does not decode every protocol, operate a queue, sign, or broadcast.
+For on-chain-to-agent activation, [`@agent-hooks/trigger-hooks`](packages/trigger-hooks/README.md) provides Solana RPC log subscriptions, HMAC-signed webhook verification, deterministic predicates, and replay-safe in-memory deduplication. It wakes a host-owned worker; it does not decode every protocol, operate a durable queue, sign, or broadcast. See the [integration and deployment guide](docs/trigger-hooks.md) for current capabilities and limitations.
 
 The framework keeps execution, memory, and planning as separate interfaces. Protocol adapters normalize events; the SDK and Rust runtime compose, simulate, and evaluate hooks; the Anchor program provides an on-chain composition registry and an early eligibility executor; `agent-brain` stores event and outcome experience; and agent integrations create proposals through policy checks before an operator approves changes.
 
