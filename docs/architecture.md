@@ -18,6 +18,14 @@ flowchart LR
     K[Kamino adapter]
     S[Solend adapter]
     HIST[Recorded events]
+    RPC[Solana RPC logs]
+    IDX[Indexer or signed webhook]
+  end
+  subgraph triggers [Trigger Hooks · off-chain]
+    VERIFY[Host verifies source + decodes event]
+    MATCH[Deterministic trigger match]
+    DEDUPE[Host durable dedupe + queue]
+    WAKE[OpenClaw · Hermes · generic HTTPS]
   end
   subgraph deterministic [Deterministic hook plane]
     N[Normalized LifecycleEvent]
@@ -35,6 +43,8 @@ flowchart LR
     PL[Planner / policy]
     REVIEW[Simulation + operator approval]
   end
+  RPC & IDX --> VERIFY --> MATCH --> DEDUPE --> WAKE
+  WAKE -. agent inspects event .-> PL
   M & K & S & HIST --> N --> V --> C --> T
   T -. accepted proposal .-> P --> STATE
   T -. consumer integration .-> B
@@ -52,8 +62,17 @@ flowchart LR
 | `agent-brain` | Storage interface with bounded in-memory and PostgreSQL implementations for normalized lifecycle events and hook feedback; query or stream prior experience to a planner. | Depends only on shared contracts, not adapters or the orchestration SDK. PostgreSQL uses an injected host database client; provenance labels remain caller-reported and are not cryptographically verified. No automatic reward attribution, causal model, or model training. |
 | `agent-runtime` | Agent proposal, simulation, and approval boundaries. | Model outputs remain untrusted proposals and cannot sign or submit transactions. |
 | `@agent-hooks/toolkit` | Standalone TypeScript hook engine, bounded memory, daily X workflow, and treasury review queue. | Local workflow primitives only; production hosts provide durable stores, identity authentication, chain adapters, and execution services. |
+| `@agent-hooks/trigger-hooks` | TypeScript Solana log/webhook ingress, deterministic trigger matching, and outbound OpenClaw, Hermes Generic V2, or generic HTTPS dispatchers. | Off-chain wake adapters only. Host owns protocol decoding/source verification, durable cursor/dedupe/queue, agent-host configuration, retries, and all signing/execution boundaries. |
 | Anchor executor | Pool/composition registration, eligibility receipts, and hook listing metadata. | `run_composition` does not CPI into registered hook programs, enforce their decisions, or mutate downstream protocol state. |
 | Anchor policy example | A standalone policy instruction with bounded inputs and executor-PDA authorization. | A downstream protocol must call it before its own mutation and bind the checked values to that exact action; this sample is not itself a swap executor. |
+
+### Trigger-to-agent path
+
+Trigger Hooks is an off-chain wake-up path, not an on-chain callback or a Solana program. `SolanaLogSource` can subscribe to logs for a configured program; an indexer can instead POST observations through the signed-ingress helper. In both cases the host must fetch/reconcile chain data, authenticate relevant programs and accounts, decode protocol-specific events, and only then assert that an observation is verified. Predicates can match the resulting event, adapter, or LTV range.
+
+The TypeScript package currently supplies outbound HTTP dispatch to OpenClaw's hook endpoint and Hermes Generic V2 webhook routes, plus a generic signed/bearer-authenticated HTTPS webhook. Those adapters hand the event to an operator-configured agent host. The package's default dedupe store is volatile and there is no bundled durable queue: production hosts must provide persistent atomic deduplication, replay, retry, idempotency, and observability. See the [Trigger Hooks guide](trigger-hooks.md) for setup and deployment boundaries.
+
+For financial agents, waking on a liquidation-risk threshold, large transfer, or governance event can replace continuous polling with event-driven review. The wake is only a signal: it does not attest to a protocol decoder, guarantee delivery or response time, authorize a trade, or provide a safe signing path. Keep analysis and proposal generation separated from policy checks, simulation, operator approval, and transaction execution.
 
 ## Deterministic evaluation path
 
