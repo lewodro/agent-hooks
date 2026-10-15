@@ -27,6 +27,17 @@ describe("TriggerEngine", () => {
     assert.equal((await engine.ingest(observation)).length, 0);
     assert.deepEqual(wakes, ["whale"]);
   });
+
+  it("releases the dedupe claim when delivery fails", async () => {
+    let attempts = 0;
+    const engine = new TriggerEngine({
+      triggers: [{ id: "retryable", predicate: {} }],
+      dispatcher: { wake: async () => { attempts += 1; if (attempts === 1) throw new Error("temporary"); } },
+    });
+    await assert.rejects(engine.ingest(observation), /temporary/);
+    assert.equal((await engine.ingest(observation)).length, 1);
+    assert.equal(attempts, 2);
+  });
 });
 
 describe("signed webhooks", () => {

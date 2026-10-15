@@ -50,6 +50,7 @@ export interface WakeDispatcher {
 
 export interface DedupeStore {
   claim(key: string): Promise<boolean>;
+  release(key: string): Promise<void>;
 }
 
 export class MemoryDedupeStore implements DedupeStore {
@@ -59,6 +60,10 @@ export class MemoryDedupeStore implements DedupeStore {
     if (this.keys.has(key)) return false;
     this.keys.add(key);
     return true;
+  }
+
+  async release(key: string): Promise<void> {
+    this.keys.delete(key);
   }
 }
 
@@ -81,13 +86,19 @@ export class TriggerEngine {
 
   async ingest(observation: ChainObservation): Promise<readonly WakeRequest[]> {
     if (!observation.sourceVerified) throw new Error("cannot ingest an unverified chain observation");
+    validateObservation(observation);
     const requests: WakeRequest[] = [];
     for (const trigger of this.options.triggers) {
       if (trigger.enabled === false || !matches(trigger.predicate, observation)) continue;
       const dedupeKey = `${trigger.id}:${observation.signature}:${observation.sourceId}`;
       if (!(await this.dedupe.claim(dedupeKey))) continue;
       const request = { trigger, observation, dedupeKey } satisfies WakeRequest;
-      await this.options.dispatcher.wake(request);
+      try {
+        await this.options.dispatcher.wake(request);
+      } catch (error) {
+        await this.dedupe.release(dedupeKey);
+        throw error;
+      }
       requests.push(request);
     }
     return requests;
@@ -97,6 +108,17 @@ export class TriggerEngine {
   receivedAt(): string {
     return this.now().toISOString();
   }
+}
+
+function validateObservation(observation: ChainObservation): void {
+  if (!observation.signature.trim() || observation.signature.length > 128) {
+    throw new Error("observation signature must contain 1-128 characters");
+  }
+  if (!observation.programId.trim() || observation.programId.length > 64) {
+    throw new Error("observation programId must contain 1-64 characters");
+  }
+  if (observation.slot < 0n) throw new Error("observation slot cannot be negative");
+  if (!Number.isFinite(Date.parse(observation.receivedAt))) throw new Error("observation receivedAt must be a valid date");
 }
 
 function matches(predicate: TriggerPredicate, observation: ChainObservation): boolean {
