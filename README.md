@@ -32,8 +32,8 @@ Why this matters for agentic finance: markets and governance move while an agent
                                        │
                                        └── propose allow / reject / bounded effects
 
- Trigger Hooks: verified chain observation ──> durable wake ──> off-chain agent
- Today: Solana ingress primitives exist; protocol decoders, durable queue, and protocol hook CPI are not wired.
+ Trigger Hooks: host-verified observation ──> trigger match ──> agent wake
+ Today: RPC/webhook ingress and dispatch adapters exist; decoding, durable queue, and protocol hook CPI are host/integration work.
 ```
 
 The loop is continuous: observe an event, evaluate deterministic guards, record the later outcome, retrieve relevant experience, and propose the next version. Model output is never itself an execution guardrail.

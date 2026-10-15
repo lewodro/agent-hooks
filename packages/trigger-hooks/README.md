@@ -21,6 +21,17 @@ pnpm --filter @agent-hooks/trigger-hooks build
 
 After a release, install with `npm install @agent-hooks/trigger-hooks`. The package requires Node.js 22 or newer. Its Solana event types import `@agent-hooks/contracts`, which is currently a workspace dependency; publishing/releasing this package requires that dependency to be independently resolvable from npm.
 
+### npm release path
+
+This repository has not published either package. Before the first public release, an npm maintainer needs to:
+
+1. Confirm the `@agent-hooks` npm organization and release permissions, then build and publish `@agent-hooks/contracts` first (currently version `0.1.0`).
+2. Build `@agent-hooks/trigger-hooks`, inspect its packed contents with `pnpm --filter @agent-hooks/trigger-hooks pack:check`, and confirm its packed dependency points to a released `@agent-hooks/contracts` version—not a workspace-only specifier.
+3. Publish the trigger package only after the tarball can install in a clean external TypeScript project. Verify all three adapter subpath imports from the installed tarball and keep the published README, license, and declarations in the package.
+4. For later releases, increment package versions intentionally and publish the contracts dependency before any consumer that requires its new API. Do not commit npm tokens; use the maintainer's trusted publishing or local npm login flow.
+
+The `pack:check` script currently runs `npm pack --dry-run`; it is a contents preview, not proof that the package installs outside this pnpm workspace. The `prepack` lifecycle runs this package's tests and build when pnpm packs it.
+
 ## Choose an agent dispatcher
 
 ```ts
