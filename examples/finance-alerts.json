@@ -1,0 +1,34 @@
+{
+  "triggers": [
+    {
+      "id": "solana-liquidation-review",
+      "predicate": {
+        "alertCategories": ["liquidation_risk"],
+        "networks": ["solana-mainnet"],
+        "minimumSeverity": "warning",
+        "metricConditions": [
+          { "metric": "healthFactor", "operator": "lt", "value": 1.15 }
+        ]
+      }
+    },
+    {
+      "id": "large-usdc-movement",
+      "predicate": {
+        "alertCategories": ["whale_movement"],
+        "networks": ["solana-mainnet"],
+        "assetSymbols": ["USDC"],
+        "metricConditions": [
+          { "metric": "amountUsd", "operator": "gte", "value": 1000000 }
+        ]
+      }
+    },
+    {
+      "id": "dao-governance-review",
+      "predicate": {
+        "alertCategories": ["dao_proposal"],
+        "networks": ["solana-mainnet"],
+        "minimumSeverity": "info"
+      }
+    }
+  ]
+}
