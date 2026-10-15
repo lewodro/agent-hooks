@@ -162,6 +162,7 @@ function matches(predicate: TriggerPredicate, observation: ChainObservation): bo
   if (predicate.networks && (!observation.financeAlert || !predicate.networks.includes(observation.financeAlert.network))) return false;
   if (expectedAssets && !observation.financeAlert?.assetSymbols?.some((asset) => expectedAssets.includes(asset.toLowerCase()))) return false;
   if (predicate.minimumSeverity && (!observation.financeAlert || severityRank(observation.financeAlert.severity) < severityRank(predicate.minimumSeverity))) return false;
+  if (predicate.metricConditions?.some((condition) => !matchesMetric(condition, observation.financeAlert?.metrics))) return false;
   const event = observation.event;
   if (predicate.eventKinds && (!event || !predicate.eventKinds.includes(event.kind))) return false;
   if (predicate.adapters && (!event || !predicate.adapters.includes(event.adapter))) return false;
@@ -172,6 +173,18 @@ function matches(predicate: TriggerPredicate, observation: ChainObservation): bo
 
 function severityRank(severity: FinanceAlertSeverity): number {
   return severity === "critical" ? 2 : severity === "warning" ? 1 : 0;
+}
+
+function matchesMetric(condition: NumericMetricCondition, metrics: FinanceAlertContext["metrics"]): boolean {
+  const actual = metrics?.[condition.metric];
+  if (typeof actual !== "number" || !Number.isFinite(actual)) return false;
+  switch (condition.operator) {
+    case "gt": return actual > condition.value;
+    case "gte": return actual >= condition.value;
+    case "lt": return actual < condition.value;
+    case "lte": return actual <= condition.value;
+    case "eq": return actual === condition.value;
+  }
 }
 
 export interface RpcLogSourceOptions {
