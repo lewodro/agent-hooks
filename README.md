@@ -22,6 +22,8 @@ Agent Hooks is an open-source framework for event-driven agents. It separates **
 
 Why this matters for agentic finance: markets and governance move while an agent is idle. Event-driven wake-ups can reduce polling and shorten the time between a watched on-chain signal and human review. They do **not** guarantee a profitable or timely response: RPC/indexer coverage, decoder correctness, finality, durable delivery, risk controls, and operator review still matter. By default, a trigger should request analysis or a proposal—not grant the receiving agent signing authority.
 
+Choose what should wake your agent with configurable category, network, asset, severity, and numeric-threshold rules in [`examples/finance-alerts.json`](examples/finance-alerts.json). The host supplies the verified/decoded signal; the same trigger rules can dispatch to OpenClaw, Hermes, or your own agent webhook. See [alert variables and setup](docs/trigger-hooks.md#configure-what-should-alert).
+
 ```text
                 THE MIND (off-chain)
  verified outcomes ──> agent-brain ──> planner ──> simulate + policy
