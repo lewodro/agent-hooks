@@ -63,6 +63,34 @@ describe("TriggerEngine", () => {
     };
     assert.equal((await engine.ingest(financeObservation)).length, 1);
   });
+
+  it("requires every configured numeric metric condition to match", async () => {
+    let wakes = 0;
+    const engine = new TriggerEngine({
+      triggers: [{
+        id: "high-risk-position",
+        predicate: {
+          alertCategories: ["liquidation_risk"],
+          metricConditions: [
+            { metric: "ltvBps", operator: "gte", value: 8_000 },
+            { metric: "healthFactor", operator: "lt", value: 1.1 },
+          ],
+        },
+      }],
+      dispatcher: { wake: async () => { wakes += 1; } },
+    });
+    const financeObservation: ChainObservation = {
+      ...observation,
+      financeAlert: {
+        category: "liquidation_risk",
+        network: "solana-mainnet",
+        severity: "critical",
+        metrics: { ltvBps: 8_400, healthFactor: 1.04 },
+      },
+    };
+    assert.equal((await engine.ingest(financeObservation)).length, 1);
+    assert.equal(wakes, 1);
+  });
 });
 
 describe("signed webhooks", () => {
