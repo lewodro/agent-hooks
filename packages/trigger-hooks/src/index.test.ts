@@ -38,6 +38,31 @@ describe("TriggerEngine", () => {
     assert.equal((await engine.ingest(observation)).length, 1);
     assert.equal(attempts, 2);
   });
+
+  it("matches configurable category, network, asset, and severity alerts", async () => {
+    const engine = new TriggerEngine({
+      triggers: [{
+        id: "sol-whale-warning",
+        predicate: {
+          alertCategories: ["whale_movement"],
+          networks: ["solana-mainnet"],
+          assetSymbols: ["USDC"],
+          minimumSeverity: "warning",
+        },
+      }],
+      dispatcher: { wake: async () => undefined },
+    });
+    const financeObservation: ChainObservation = {
+      ...observation,
+      financeAlert: {
+        category: "whale_movement",
+        network: "solana-mainnet",
+        severity: "warning",
+        assetSymbols: ["usdc"],
+      },
+    };
+    assert.equal((await engine.ingest(financeObservation)).length, 1);
+  });
 });
 
 describe("signed webhooks", () => {
