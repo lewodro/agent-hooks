@@ -1,83 +1,29 @@
-use hmac::{Hmac, Mac};
-use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use agent_hooks_trigger_service::{verify_signature, Observation, Trigger, TriggerStore};
+use serde::Deserialize;
 use std::{
-    collections::HashSet,
-    env, fs,
+    env,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
 };
-
-type HmacSha256 = Hmac<Sha256>;
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct Trigger {
-    id: String,
-    #[serde(default)]
-    program_id: Option<String>,
-    #[serde(default)]
-    event_kind: Option<String>,
-    #[serde(default)]
-    min_ltv_bps: Option<u32>,
-    #[serde(default = "enabled")]
-    enabled: bool,
-}
-
-fn enabled() -> bool {
-    true
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct Observation {
-    signature: String,
-    slot: u64,
-    program_id: String,
-    #[serde(default)]
-    event_kind: Option<String>,
-    #[serde(default)]
-    ltv_bps: Option<u32>,
-    #[serde(default)]
-    payload: serde_json::Value,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-struct WakeJob {
-    id: String,
-    trigger_id: String,
-    observation: Observation,
-    status: String,
-    created_at: u64,
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-struct State {
-    triggers: Vec<Trigger>,
-    jobs: Vec<WakeJob>,
-    claimed: HashSet<String>,
-    last_slot: u64,
-}
 
 #[derive(Clone)]
 struct App {
-    state: Arc<Mutex<State>>,
-    state_file: PathBuf,
+    store: TriggerStore,
     secret: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FailureBody {
+    error: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind = env::var("TRIGGER_BIND").unwrap_or_else(|_| "127.0.0.1:8787".into());
-    let state_file = PathBuf::from(
-        env::var("TRIGGER_STATE_FILE").unwrap_or_else(|_| "./trigger-state.json".into()),
-    );
-    let secret = env::var("TRIGGER_WEBHOOK_SECRET").ok();
-    let state = load_state(&state_file)?;
+    let state_file =
+        env::var("TRIGGER_STATE_FILE").unwrap_or_else(|_| "./trigger-state.json".into());
     let app = App {
-        state: Arc::new(Mutex::new(state)),
-        state_file,
-        secret,
+        store: TriggerStore::load(state_file)?,
+        secret: env::var("TRIGGER_WEBHOOK_SECRET").ok(),
     };
     let listener = TcpListener::bind(&bind)?;
     println!("agent-hooks trigger service listening on http://{bind}");
@@ -86,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(stream) => {
                 let app = app.clone();
                 std::thread::spawn(move || {
-                    if let Err(error) = handle(stream, app) {
+                    if let Err(error) = handle(stream, &app) {
                         eprintln!("request failed: {error}");
                     }
                 });
@@ -97,144 +43,98 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn handle(mut stream: TcpStream, app: App) -> Result<(), Box<dyn std::error::Error>> {
-    let request = read_request(&mut stream)?;
-    let (method, path, headers, body) = request;
-    let (status, response) = match (method.as_str(), path.as_str()) {
-        ("GET", "/health") => (
-            200,
-            serde_json::json!({"ok": true, "service": "trigger-hooks", "mode": "mock"}),
-        ),
-        ("GET", "/v1/triggers") => {
-            let state = app.state.lock().unwrap();
-            (200, serde_json::json!(state.triggers))
-        }
-        ("POST", "/v1/triggers") => {
-            let trigger: Trigger = serde_json::from_str(&body)?;
-            let mut state = app.state.lock().unwrap();
-            if state.triggers.iter().any(|item| item.id == trigger.id) {
-                (409, serde_json::json!({"error": "trigger already exists"}))
-            } else {
-                state.triggers.push(trigger.clone());
-                persist(&app, &state)?;
-                (201, serde_json::json!(trigger))
-            }
-        }
-        ("GET", "/v1/jobs") => {
-            let state = app.state.lock().unwrap();
-            (200, serde_json::json!(state.jobs))
-        }
-        ("POST", "/v1/observations") => ingest(&app, &headers, &body)?,
-        _ => (404, serde_json::json!({"error": "not found"})),
-    };
+fn handle(mut stream: TcpStream, app: &App) -> Result<(), Box<dyn std::error::Error>> {
+    let (method, path, headers, body) = read_request(&mut stream)?;
+    let (status, response) = route(app, &method, &path, &headers, &body);
     write_response(&mut stream, status, &response.to_string())?;
     Ok(())
 }
 
-fn ingest(
+fn route(
     app: &App,
+    method: &str,
+    path: &str,
     headers: &[(String, String)],
     body: &str,
-) -> Result<(u16, serde_json::Value), Box<dyn std::error::Error>> {
+) -> (u16, serde_json::Value) {
+    match (method, path) {
+        ("GET", "/health") => (
+            200,
+            serde_json::json!({"ok": true, "service": "trigger-hooks"}),
+        ),
+        ("GET", "/v1/triggers") => (200, serde_json::json!(app.store.triggers())),
+        ("GET", "/v1/jobs") => (200, serde_json::json!(app.store.jobs())),
+        ("POST", "/v1/triggers") => match serde_json::from_str::<Trigger>(body) {
+            Ok(trigger) => match app.store.register(trigger.clone()) {
+                Ok(()) => (201, serde_json::json!(trigger)),
+                Err(error) if error == "trigger already exists" => error_response(409, error),
+                Err(error) => error_response(400, error),
+            },
+            Err(error) => error_response(400, format!("invalid trigger JSON: {error}")),
+        },
+        ("POST", "/v1/observations") => ingest(app, headers, body),
+        ("POST", "/v1/jobs/claim") => match app.store.claim_next() {
+            Ok(job) => (200, serde_json::json!({"job": job})),
+            Err(error) => error_response(500, error),
+        },
+        _ if method == "POST" => transition(app, path, body),
+        _ => error_response(404, "not found"),
+    }
+}
+
+fn ingest(app: &App, headers: &[(String, String)], body: &str) -> (u16, serde_json::Value) {
     if let Some(secret) = &app.secret {
-        let timestamp =
-            header(headers, "x-agent-hooks-timestamp").ok_or("missing webhook timestamp")?;
-        let signature =
-            header(headers, "x-agent-hooks-signature").ok_or("missing webhook signature")?;
-        verify_signature(secret, &timestamp, body, &signature)?;
-    }
-    let observation: Observation = serde_json::from_str(body)?;
-    let mut state = app.state.lock().unwrap();
-    state.last_slot = state.last_slot.max(observation.slot);
-    let mut jobs = Vec::new();
-    for trigger in state.triggers.clone() {
-        if !trigger.enabled || !matches(&trigger, &observation) {
-            continue;
-        }
-        let dedupe = format!("{}:{}", trigger.id, observation.signature);
-        if !state.claimed.insert(dedupe.clone()) {
-            continue;
-        }
-        let job = WakeJob {
-            id: dedupe,
-            trigger_id: trigger.id,
-            observation: observation.clone(),
-            status: "queued".into(),
-            created_at: now(),
+        let Some(timestamp) = header(headers, "x-agent-hooks-timestamp") else {
+            return error_response(401, "missing webhook timestamp");
         };
-        state.jobs.push(job.clone());
-        jobs.push(job);
+        let Some(signature) = header(headers, "x-agent-hooks-signature") else {
+            return error_response(401, "missing webhook signature");
+        };
+        if let Err(error) = verify_signature(secret, &timestamp, body, &signature) {
+            return error_response(401, error);
+        }
     }
-    persist(app, &state)?;
-    Ok((
-        202,
-        serde_json::json!({"accepted": true, "jobs": jobs, "last_slot": state.last_slot}),
-    ))
+    match serde_json::from_str::<Observation>(body) {
+        Ok(observation) => match app.store.ingest(observation) {
+            Ok(jobs) => (202, serde_json::json!({"accepted": true, "jobs": jobs})),
+            Err(error) => error_response(400, error),
+        },
+        Err(error) => error_response(400, format!("invalid observation JSON: {error}")),
+    }
 }
 
-fn matches(trigger: &Trigger, observation: &Observation) -> bool {
-    trigger
-        .program_id
-        .as_ref()
-        .map_or(true, |id| id == &observation.program_id)
-        && trigger
-            .event_kind
-            .as_ref()
-            .map_or(true, |kind| observation.event_kind.as_ref() == Some(kind))
-        && trigger
-            .min_ltv_bps
-            .map_or(true, |min| observation.ltv_bps.unwrap_or(0) >= min)
+fn transition(app: &App, path: &str, body: &str) -> (u16, serde_json::Value) {
+    let Some(rest) = path.strip_prefix("/v1/jobs/") else {
+        return error_response(404, "not found");
+    };
+    let Some((id, action)) = rest.rsplit_once('/') else {
+        return error_response(404, "not found");
+    };
+    let result = match action {
+        "complete" => app.store.complete(id),
+        "retry" => app.store.retry(id),
+        "fail" => match serde_json::from_str::<FailureBody>(body) {
+            Ok(failure) => app.store.fail(id, failure.error),
+            Err(error) => return error_response(400, format!("invalid failure JSON: {error}")),
+        },
+        _ => return error_response(404, "not found"),
+    };
+    match result {
+        Ok(job) => (200, serde_json::json!(job)),
+        Err(error) if error == "job not found" => error_response(404, error),
+        Err(error) => error_response(400, error),
+    }
 }
 
-fn verify_signature(
-    secret: &str,
-    timestamp: &str,
-    body: &str,
-    provided: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let timestamp: u64 = timestamp.parse()?;
-    if now().abs_diff(timestamp) > 300 {
-        return Err("webhook timestamp is too old".into());
-    }
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())?;
-    mac.update(format!("{timestamp}.{body}").as_bytes());
-    let expected = format!("sha256={}", hex(mac.finalize().into_bytes().as_slice()));
-    if expected != provided {
-        return Err("invalid webhook signature".into());
-    }
-    Ok(())
+fn error_response(status: u16, error: impl Into<String>) -> (u16, serde_json::Value) {
+    (status, serde_json::json!({"error": error.into()}))
 }
 
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
 fn header(headers: &[(String, String)], name: &str) -> Option<String> {
     headers
         .iter()
         .find(|(key, _)| key.eq_ignore_ascii_case(name))
         .map(|(_, value)| value.clone())
-}
-
-fn load_state(path: &PathBuf) -> Result<State, Box<dyn std::error::Error>> {
-    match fs::read_to_string(path) {
-        Ok(contents) => Ok(serde_json::from_str(&contents)?),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(State::default()),
-        Err(error) => Err(error.into()),
-    }
-}
-
-fn persist(app: &App, state: &State) -> Result<(), Box<dyn std::error::Error>> {
-    let temp = app.state_file.with_extension("tmp");
-    let contents = serde_json::to_vec_pretty(state)?;
-    fs::write(&temp, contents)?;
-    fs::rename(temp, &app.state_file)?;
-    Ok(())
 }
 
 fn read_request(
@@ -273,6 +173,9 @@ fn read_request(
         .unwrap_or_default()
         .parse::<usize>()
         .unwrap_or(0);
+    if content_length > 256 * 1024 {
+        return Err("request body too large".into());
+    }
     while bytes.len() < header_end + content_length {
         let count = stream.read(&mut buffer)?;
         if count == 0 {
@@ -289,15 +192,37 @@ fn write_response(
     status: u16,
     body: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let reason = if status < 300 {
-        "OK"
-    } else if status == 404 {
-        "Not Found"
-    } else if status == 409 {
-        "Conflict"
-    } else {
-        "Accepted"
+    let reason = match status {
+        200 => "OK",
+        201 => "Created",
+        202 => "Accepted",
+        400 => "Bad Request",
+        401 => "Unauthorized",
+        404 => "Not Found",
+        409 => "Conflict",
+        _ => "Internal Server Error",
     };
     write!(stream, "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn health_route_is_available() {
+        let path = std::env::temp_dir().join(format!(
+            "agent-hooks-route-test-{}.json",
+            std::process::id()
+        ));
+        let app = App {
+            store: TriggerStore::load(path.clone()).unwrap(),
+            secret: None,
+        };
+        let (status, body) = route(&app, "GET", "/health", &[], "");
+        assert_eq!(status, 200);
+        assert_eq!(body["ok"], true);
+        let _ = std::fs::remove_file(path);
+    }
 }
