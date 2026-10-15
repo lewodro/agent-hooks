@@ -16,7 +16,7 @@ Agent Hooks is an open-source, real-time execution and experience framework for 
        │                                              ▼
        └──── host integration <── THE HOOK (deterministic runtime)
                                        │
-       └── propose allow / reject / bounded effects
+                                       └── propose allow / reject / bounded effects
 
  Trigger Hooks: verified chain observation ──> durable wake ──> off-chain agent
  Today: Solana ingress primitives exist; protocol decoders, durable queue, and protocol hook CPI are not wired.
