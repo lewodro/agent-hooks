@@ -91,6 +91,17 @@ describe("TriggerEngine", () => {
     assert.equal((await engine.ingest(financeObservation)).length, 1);
     assert.equal(wakes, 1);
   });
+
+  it("rejects non-finite or out-of-range alert thresholds at setup", () => {
+    assert.throws(() => new TriggerEngine({
+      triggers: [{ id: "bad-threshold", predicate: { metricConditions: [{ metric: "ltvBps", operator: "gte", value: Number.NaN }] } }],
+      dispatcher: { wake: async () => undefined },
+    }), /must be finite/);
+    assert.throws(() => new TriggerEngine({
+      triggers: [{ id: "bad-ltv", predicate: { minLtvBps: 10_001 } }],
+      dispatcher: { wake: async () => undefined },
+    }), /0 to 10000 bps/);
+  });
 });
 
 describe("signed webhooks", () => {
