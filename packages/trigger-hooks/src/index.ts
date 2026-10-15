@@ -19,6 +19,12 @@ export type FinanceAlertCategory =
 
 export type FinanceAlertSeverity = "info" | "warning" | "critical";
 
+export interface NumericMetricCondition {
+  metric: string;
+  operator: "gt" | "gte" | "lt" | "lte" | "eq";
+  value: number;
+}
+
 /** Host-normalized signal. It carries context; it is not a verified protocol fact by itself. */
 export interface FinanceAlertContext {
   category: FinanceAlertCategory;
@@ -52,6 +58,7 @@ export interface TriggerPredicate {
   networks?: readonly string[];
   assetSymbols?: readonly string[];
   minimumSeverity?: FinanceAlertSeverity;
+  metricConditions?: readonly NumericMetricCondition[];
   eventKinds?: readonly LifecycleEventKind[];
   adapters?: readonly LifecycleEvent["adapter"][];
   minLtvBps?: number;
