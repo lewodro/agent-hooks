@@ -3,17 +3,34 @@
   "version": "0.1.0",
   "license": "MIT",
   "homepage": "https://agenthooks.io",
-  "repository": "https://github.com/lewodro/agent-hooks",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lewodro/agent-hooks.git",
+    "directory": "packages/trigger-hooks"
+  },
+  "bugs": "https://github.com/lewodro/agent-hooks/issues",
   "description": "Solana event triggers that wake an off-chain Agent Hooks worker.",
+  "keywords": ["agents", "automation", "blockchain", "openclaw", "solana", "webhooks"],
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./openclaw": { "types": "./dist/openclaw.d.ts", "import": "./dist/openclaw.js" },
+    "./hermes": { "types": "./dist/hermes.d.ts", "import": "./dist/hermes.js" },
+    "./webhook": { "types": "./dist/webhook.d.ts", "import": "./dist/webhook.js" }
+  },
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test --import tsx src/**/*.test.ts"
+    "test": "node --test --import tsx src/**/*.test.ts",
+    "prepack": "pnpm run test && pnpm run build",
+    "pack:check": "npm pack --dry-run"
   },
+  "engines": { "node": ">=22" },
+  "publishConfig": { "access": "public" },
   "dependencies": {
     "@agent-hooks/contracts": "workspace:*",
     "@solana/web3.js": "^1.95.4"
