@@ -48,6 +48,7 @@ export function toHermesPayload(request: WakeRequest): Record<string, unknown> {
     signature: request.observation.signature,
     slot: request.observation.slot.toString(),
     program_id: request.observation.programId,
+    ...(request.observation.financeAlert ? { finance_alert: request.observation.financeAlert } : {}),
     ...(event ? { lifecycle_kind: event.kind, adapter: event.adapter, ltv_bps: event.position.ltvBps } : {}),
     instruction: "Inspect this verified observation and prepare a proposal. Do not sign or broadcast automatically.",
   };
