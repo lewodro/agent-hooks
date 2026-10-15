@@ -113,6 +113,7 @@ export class TriggerEngine {
   private readonly now: () => Date;
 
   constructor(private readonly options: TriggerEngineOptions) {
+    for (const trigger of options.triggers) validateTriggerDefinition(trigger);
     this.dedupe = options.dedupe ?? new MemoryDedupeStore();
     this.now = options.now ?? (() => new Date());
   }
@@ -152,6 +153,23 @@ function validateObservation(observation: ChainObservation): void {
   }
   if (observation.slot < 0n) throw new Error("observation slot cannot be negative");
   if (!Number.isFinite(Date.parse(observation.receivedAt))) throw new Error("observation receivedAt must be a valid date");
+}
+
+function validateTriggerDefinition(trigger: TriggerDefinition): void {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(trigger.id)) throw new Error("trigger id must be 1-128 safe characters");
+  const predicate = trigger.predicate;
+  for (const condition of predicate.metricConditions ?? []) {
+    if (!/^[A-Za-z][A-Za-z0-9_.-]{0,63}$/.test(condition.metric)) throw new Error("metric condition name is invalid");
+    if (!Number.isFinite(condition.value)) throw new Error(`metric threshold for ${condition.metric} must be finite`);
+  }
+  for (const value of [predicate.minLtvBps, predicate.maxLtvBps]) {
+    if (value !== undefined && (!Number.isInteger(value) || value < 0 || value > 10_000)) {
+      throw new Error("LTV threshold must be an integer from 0 to 10000 bps");
+    }
+  }
+  if (predicate.minimumSeverity && !["info", "warning", "critical"].includes(predicate.minimumSeverity)) {
+    throw new Error("minimumSeverity must be info, warning, or critical");
+  }
 }
 
 function matches(predicate: TriggerPredicate, observation: ChainObservation): boolean {
