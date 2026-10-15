@@ -14,6 +14,23 @@ planner → simulation → policy → operator approval → separate execution s
 
 The first package implementation supports Solana RPC log subscriptions and HMAC-signed webhook intake. It intentionally leaves protocol event decoding, durable cursors, queue delivery, and the agent runtime to the host application. This keeps the trust boundary explicit: a log subscription is not proof that a normalized lending event or an LTV value is correct.
 
+## Configure what should alert
+
+Each `TriggerDefinition` is an alert rule. Combine any of these filters; configured conditions are ANDed, while multiple values within category/network/asset lists are alternatives:
+
+| Variable | Example | Meaning |
+| --- | --- | --- |
+| `alertCategories` | `["liquidation_risk", "whale_movement"]` | Match host-normalized finance signal categories. |
+| `networks` | `["solana-mainnet"]` | Match the host-provided network label. |
+| `assetSymbols` | `["USDC", "SOL"]` | Match any listed asset, case-insensitively. |
+| `minimumSeverity` | `"warning"` | Include this severity and higher (`info < warning < critical`). |
+| `metricConditions` | `[{"metric":"amountUsd","operator":"gte","value":1000000}]` | Compare named numeric fields from the host alert context. |
+| `eventKinds`, `adapters`, `minLtvBps`, `maxLtvBps` | `{"minLtvBps":8000}` | Existing Solana lending lifecycle filters. |
+
+See [the sample rules](../examples/finance-alerts.json) for liquidation-risk, large-transfer, and DAO proposal examples. These rules are configuration data; they do not create a price feed, whale detector, or DAO decoder. Your trusted observer must normalize the relevant source into `financeAlert` and populate consistent metric names and units (for example, `amountUsd` in USD, `ltvBps` in basis points). Missing or non-numeric threshold metrics fail closed and do not match.
+
+The built-in alert labels are `liquidation_risk`, `whale_movement`, `dao_proposal`, `price_move`, and `custom`. Network names and metric keys are host-defined so an application can feed supported chains and data vendors through the same rule engine. This package currently includes a Solana log source—not EVM, Bitcoin, market-price, whale, or governance data-source integrations. To use another chain or data source, verify/decode it in your host and call `TriggerEngine.ingest()` with an appropriately normalized observation. `sourceVerified` is a host assertion; an HMAC-authenticated webhook alone is not chain verification.
+
 ## Agent integrations available now
 
 The TypeScript package exposes dispatchers through `@agent-hooks/trigger-hooks/openclaw`, `/hermes`, and `/webhook`. These send a wake request after the host's `TriggerEngine` matches an observation. They do not install or configure software on the agent host. Configure the receiving endpoint and credentials in your own OpenClaw, Hermes, or worker deployment, and keep secrets in your deployment's secret manager.
