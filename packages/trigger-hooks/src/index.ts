@@ -6,6 +6,8 @@ export { createOpenClawDispatcher, formatWakeText } from "./openclaw.js";
 export type { OpenClawDispatcherOptions } from "./openclaw.js";
 export { createHermesDispatcher, toHermesPayload } from "./hermes.js";
 export type { HermesDispatcherOptions } from "./hermes.js";
+export { createWebhookDispatcher } from "./webhook.js";
+export type { WebhookDispatcherOptions } from "./webhook.js";
 
 export interface ChainObservation {
   chain: "solana";
