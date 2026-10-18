@@ -72,6 +72,13 @@ pub enum LaunchReviewStatus {
     Rejected,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LaunchReviewDecision {
+    Approve,
+    Reject,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 pub struct TokenLaunchRequest {
     pub name: String,
@@ -172,6 +179,40 @@ impl TriggerStore {
         state.token_launch_proposals.push(proposal.clone());
         persist(&self.state_file, &state)?;
         Ok(proposal)
+    }
+
+    pub fn review_token_launch(
+        &self,
+        id: &str,
+        decision: LaunchReviewDecision,
+        reviewer: &str,
+    ) -> Result<TokenLaunchProposal, String> {
+        if reviewer.trim().is_empty() || reviewer.trim().len() > 128 {
+            return Err("reviewer must contain 1-128 characters".into());
+        }
+        let mut state = self.state.lock().map_err(|_| "state lock poisoned")?;
+        let proposal = state
+            .token_launch_proposals
+            .iter_mut()
+            .find(|proposal| proposal.id == id)
+            .ok_or("token launch proposal not found")?;
+        if proposal.status != LaunchReviewStatus::PendingReview {
+            return Err("token launch proposal is not pending review".into());
+        }
+        let canonical = serde_json::to_vec(&proposal.request).map_err(|error| error.to_string())?;
+        let current_fingerprint = format!("{:x}", Sha256::digest(canonical));
+        if proposal.fingerprint != current_fingerprint || proposal.id != current_fingerprint {
+            return Err("token launch proposal changed after submission".into());
+        }
+        proposal.status = match decision {
+            LaunchReviewDecision::Approve => LaunchReviewStatus::Approved,
+            LaunchReviewDecision::Reject => LaunchReviewStatus::Rejected,
+        };
+        proposal.reviewer = Some(reviewer.trim().to_owned());
+        proposal.reviewed_at = Some(now());
+        let reviewed = proposal.clone();
+        persist(&self.state_file, &state)?;
+        Ok(reviewed)
     }
 
     pub fn register(&self, trigger: Trigger) -> Result<(), String> {
@@ -513,6 +554,32 @@ mod tests {
         let mut request = token_launch();
         request.initial_supply = 0;
         assert!(store.propose_token_launch(request).is_err());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn launch_proposal_requires_a_named_one_time_review() {
+        let (store, path) = store();
+        let proposal = store.propose_token_launch(token_launch()).unwrap();
+        assert!(store
+            .review_token_launch(&proposal.id, LaunchReviewDecision::Approve, " ")
+            .is_err());
+        let approved = store
+            .review_token_launch(
+                &proposal.id,
+                LaunchReviewDecision::Approve,
+                "operator@example.com",
+            )
+            .unwrap();
+        assert_eq!(approved.status, LaunchReviewStatus::Approved);
+        assert_eq!(approved.reviewer.as_deref(), Some("operator@example.com"));
+        assert!(store
+            .review_token_launch(
+                &proposal.id,
+                LaunchReviewDecision::Reject,
+                "operator@example.com"
+            )
+            .is_err());
         let _ = fs::remove_file(path);
     }
 }
