@@ -9,6 +9,8 @@ export type { HermesDispatcherOptions } from "./hermes.js";
 export { createWebhookDispatcher } from "./webhook.js";
 export type { WebhookDispatcherOptions } from "./webhook.js";
 export { createTokenLaunchProposalClient, validateTokenLaunchRequest } from "./launch-proposals.js";
+export { launchApprovedToken } from "./token-launch.js";
+export type { LaunchWallet, TokenLaunchConfirmation, TokenLaunchResult } from "./token-launch.js";
 export type {
   TokenLaunchNetwork,
   TokenLaunchProposal,
