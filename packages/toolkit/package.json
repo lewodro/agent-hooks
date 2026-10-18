@@ -28,6 +28,10 @@
     "./treasury": {
       "types": "./dist/treasury.d.ts",
       "import": "./dist/treasury.js"
+    },
+    "./research": {
+      "types": "./dist/market-research.d.ts",
+      "import": "./dist/market-research.js"
     }
   },
   "files": [
@@ -36,12 +40,13 @@
     "dist/agents.js", "dist/agents.d.ts",
     "dist/x.js", "dist/x.d.ts",
     "dist/treasury.js", "dist/treasury.d.ts",
+    "dist/market-research.js", "dist/market-research.d.ts",
     "README.md", "LICENSE"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsc -p tsconfig.json && node --test dist/agents.test.js dist/solana.test.js dist/x.test.js dist/treasury.test.js",
+    "test": "tsc -p tsconfig.json && node --test dist/agents.test.js dist/solana.test.js dist/x.test.js dist/treasury.test.js dist/market-research.test.js",
     "pack:local": "npm run build && npm pack --pack-destination ../../releases"
   },
   "engines": {

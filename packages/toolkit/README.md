@@ -6,14 +6,33 @@ An independent, open-source TypeScript package for Solana hook evaluation and ag
 npm install @agent-hooks/toolkit
 ```
 
-The package is split into four importable surfaces:
+The package is split into five importable surfaces:
 
 ```ts
 import { SolanaHookEngine } from "@agent-hooks/toolkit/solana";
 import { LearningAgent, MemoryExperienceStore } from "@agent-hooks/toolkit/agents";
 import { DailyXWorkflow } from "@agent-hooks/toolkit/x";
 import { TreasuryReviewQueue } from "@agent-hooks/toolkit/treasury";
+import { researchAssets } from "@agent-hooks/toolkit/research";
 ```
+
+## Financial market research
+
+`@agent-hooks/toolkit/research` includes read-only CoinGecko `/coins/markets` and DEX Screener token-pair adapters. It returns price, market cap, volume, 24-hour movement, liquidity, pair age, provider labels, and observation/report timestamps. CoinGecko IDs and token addresses are explicit inputs; symbols are not treated as unique asset identities. Missing provider fields remain `null`, malformed values fail closed, and each report includes data-quality caveats.
+
+```ts
+import { researchAssets } from "@agent-hooks/toolkit/research";
+
+const report = await researchAssets({
+  coinIds: ["solana", "bitcoin"],
+  tokenAddresses: ["<solana-token-mint>"],
+}, {
+  coingeckoApiKey: process.env.COINGECKO_API_KEY, // optional, depending on provider access/limits
+});
+console.log(report.generatedAt, report.assets, report.pairs, report.caveats);
+```
+
+This is a provider-integration foundation, not a complete institutional terminal: it does not yet provide historical candles, order books, news, fundamentals, portfolio accounting, cross-source reconciliation, or investment recommendations. Provider observations can be stale, incomplete, or manipulated; use independent sources and your own risk controls before an agent acts.
 
 ## Solana hooks and agent frameworks
 
