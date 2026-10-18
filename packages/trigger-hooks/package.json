@@ -19,7 +19,8 @@
     ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
     "./openclaw": { "types": "./dist/openclaw.d.ts", "import": "./dist/openclaw.js" },
     "./hermes": { "types": "./dist/hermes.d.ts", "import": "./dist/hermes.js" },
-    "./webhook": { "types": "./dist/webhook.d.ts", "import": "./dist/webhook.js" }
+    "./webhook": { "types": "./dist/webhook.d.ts", "import": "./dist/webhook.js" },
+    "./launch-proposals": { "types": "./dist/launch-proposals.d.ts", "import": "./dist/launch-proposals.js" }
   },
   "files": ["dist", "README.md", "LICENSE"],
   "scripts": {

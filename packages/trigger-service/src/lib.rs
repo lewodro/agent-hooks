@@ -187,7 +187,10 @@ impl TriggerStore {
         decision: LaunchReviewDecision,
         reviewer: &str,
     ) -> Result<TokenLaunchProposal, String> {
-        if reviewer.trim().is_empty() || reviewer.trim().len() > 128 {
+        if reviewer.trim().is_empty()
+            || reviewer.trim().len() > 128
+            || reviewer.chars().any(char::is_control)
+        {
             return Err("reviewer must contain 1-128 characters".into());
         }
         let mut state = self.state.lock().map_err(|_| "state lock poisoned")?;
@@ -368,7 +371,7 @@ fn validate_observation(observation: &Observation) -> Result<(), String> {
 
 fn validate_token_launch(request: &TokenLaunchRequest) -> Result<(), String> {
     let name = request.name.trim();
-    if name.is_empty() || name.len() > 32 {
+    if name.is_empty() || name.len() > 32 || name.chars().any(char::is_control) {
         return Err("token name must contain 1-32 characters".into());
     }
     if !(2..=10).contains(&request.symbol.len())
@@ -394,7 +397,11 @@ fn validate_token_launch(request: &TokenLaunchRequest) -> Result<(), String> {
         .and_then(|rest| rest.split(['/', '?', '#']).next());
     if host.is_none_or(|host| {
         host.is_empty() || host.contains('@') || host.chars().any(char::is_whitespace)
-    }) {
+    }) || request
+        .metadata_uri
+        .chars()
+        .any(|character| character.is_control() || character.is_whitespace())
+    {
         return Err("metadata URI must be an HTTPS URL with a valid host".into());
     }
     if request.metadata_uri.len() > 2_048 {

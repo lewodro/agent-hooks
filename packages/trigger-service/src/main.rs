@@ -171,6 +171,9 @@ fn review_launch(app: &App, path: &str, body: &str) -> (u16, serde_json::Value) 
     let Some((id, action)) = rest.rsplit_once('/') else {
         return error_response(404, "not found");
     };
+    let Some(id) = decode_path_segment(id) else {
+        return error_response(400, "invalid proposal id encoding");
+    };
     let decision = match action {
         "approve" => LaunchReviewDecision::Approve,
         "reject" => LaunchReviewDecision::Reject,
@@ -179,7 +182,7 @@ fn review_launch(app: &App, path: &str, body: &str) -> (u16, serde_json::Value) 
     match serde_json::from_str::<LaunchReviewBody>(body) {
         Ok(review) => match app
             .store
-            .review_token_launch(id, decision, &review.reviewer)
+            .review_token_launch(&id, decision, &review.reviewer)
         {
             Ok(proposal) => (200, serde_json::json!(proposal)),
             Err(error) if error == "token launch proposal not found" => error_response(404, error),
@@ -190,16 +193,17 @@ fn review_launch(app: &App, path: &str, body: &str) -> (u16, serde_json::Value) 
 }
 
 fn ingest(app: &App, headers: &[(String, String)], body: &str) -> (u16, serde_json::Value) {
-    if let Some(secret) = &app.secret {
-        let Some(timestamp) = header(headers, "x-agent-hooks-timestamp") else {
-            return error_response(401, "missing webhook timestamp");
-        };
-        let Some(signature) = header(headers, "x-agent-hooks-signature") else {
-            return error_response(401, "missing webhook signature");
-        };
-        if let Err(error) = verify_signature(secret, &timestamp, body, &signature) {
-            return error_response(401, error);
-        }
+    let Some(secret) = &app.secret else {
+        return error_response(503, "observation webhook authentication is not configured");
+    };
+    let Some(timestamp) = header(headers, "x-agent-hooks-timestamp") else {
+        return error_response(401, "missing webhook timestamp");
+    };
+    let Some(signature) = header(headers, "x-agent-hooks-signature") else {
+        return error_response(401, "missing webhook signature");
+    };
+    if let Err(error) = verify_signature(secret, &timestamp, body, &signature) {
+        return error_response(401, error);
     }
     match serde_json::from_str::<Observation>(body) {
         Ok(observation) => match app.store.ingest(observation) {
@@ -217,11 +221,14 @@ fn transition(app: &App, path: &str, body: &str) -> (u16, serde_json::Value) {
     let Some((id, action)) = rest.rsplit_once('/') else {
         return error_response(404, "not found");
     };
+    let Some(id) = decode_path_segment(id) else {
+        return error_response(400, "invalid job id encoding");
+    };
     let result = match action {
-        "complete" => app.store.complete(id),
-        "retry" => app.store.retry(id),
+        "complete" => app.store.complete(&id),
+        "retry" => app.store.retry(&id),
         "fail" => match serde_json::from_str::<FailureBody>(body) {
-            Ok(failure) => app.store.fail(id, failure.error),
+            Ok(failure) => app.store.fail(&id, failure.error),
             Err(error) => return error_response(400, format!("invalid failure JSON: {error}")),
         },
         _ => return error_response(404, "not found"),
@@ -231,6 +238,24 @@ fn transition(app: &App, path: &str, body: &str) -> (u16, serde_json::Value) {
         Err(error) if error == "job not found" => error_response(404, error),
         Err(error) => error_response(400, error),
     }
+}
+
+fn decode_path_segment(value: &str) -> Option<String> {
+    let bytes = value.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = (*bytes.get(index + 1)? as char).to_digit(16)? as u8;
+            let low = (*bytes.get(index + 2)? as char).to_digit(16)? as u8;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
 }
 
 fn error_response(status: u16, error: impl Into<String>) -> (u16, serde_json::Value) {
@@ -376,6 +401,14 @@ mod tests {
 
         let reviewer_headers = vec![("authorization".into(), "Bearer review-secret".into())];
         let route_path = format!("/v1/token-launch-proposals/{id}/approve");
+        let (status, _) = route(
+            &app,
+            "POST",
+            &route_path,
+            &agent_headers,
+            r#"{"reviewer":"agent"}"#,
+        );
+        assert_eq!(status, 401);
         let (status, reviewed) = route(
             &app,
             "POST",
@@ -385,6 +418,74 @@ mod tests {
         );
         assert_eq!(status, 200);
         assert_eq!(reviewed["status"], "approved");
+        let _ = std::fs::remove_file(state_path);
+    }
+
+    #[test]
+    fn observations_are_rejected_when_hmac_auth_is_not_configured() {
+        let path = std::env::temp_dir().join(format!(
+            "agent-hooks-ingest-auth-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let app = App {
+            store: TriggerStore::load(path.clone()).unwrap(),
+            secret: None,
+            agent_secret: None,
+            review_secret: None,
+        };
+        let (status, _) = route(&app, "POST", "/v1/observations", &[], "{}");
+        assert_eq!(status, 503);
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn bridge_can_complete_job_ids_with_percent_encoded_separators() {
+        let state_path = std::env::temp_dir().join(format!(
+            "agent-hooks-bridge-route-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let app = App {
+            store: TriggerStore::load(state_path.clone()).unwrap(),
+            secret: None,
+            agent_secret: Some("agent-secret".into()),
+            review_secret: Some("review-secret".into()),
+        };
+        app.store
+            .register(Trigger {
+                id: "bridge-job".into(),
+                program_id: None,
+                event_kind: None,
+                min_ltv_bps: None,
+                enabled: true,
+            })
+            .unwrap();
+        let job = app
+            .store
+            .ingest(Observation {
+                signature: "tx-signature".into(),
+                slot: 10,
+                program_id: "program".into(),
+                event_index: 2,
+                event_kind: None,
+                ltv_bps: None,
+                payload: serde_json::json!({}),
+            })
+            .unwrap()
+            .remove(0);
+        let encoded_id = job.id.replace(':', "%3A");
+        let route_path = format!("/v1/jobs/{encoded_id}/complete");
+        let headers = vec![("authorization".into(), "Bearer agent-secret".into())];
+        let (status, result) = route(&app, "POST", &route_path, &headers, "");
+        assert_eq!(status, 200);
+        assert_eq!(result["status"], "completed");
         let _ = std::fs::remove_file(state_path);
     }
 }

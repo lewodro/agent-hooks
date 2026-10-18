@@ -8,6 +8,14 @@ export { createHermesDispatcher, toHermesPayload } from "./hermes.js";
 export type { HermesDispatcherOptions } from "./hermes.js";
 export { createWebhookDispatcher } from "./webhook.js";
 export type { WebhookDispatcherOptions } from "./webhook.js";
+export { createTokenLaunchProposalClient, validateTokenLaunchRequest } from "./launch-proposals.js";
+export type {
+  TokenLaunchNetwork,
+  TokenLaunchProposal,
+  TokenLaunchProposalClientOptions,
+  TokenLaunchRequest,
+  TokenLaunchReviewStatus,
+} from "./launch-proposals.js";
 
 /** Built-in finance alert labels; hosts may also emit `custom` with their own metric keys. */
 export type FinanceAlertCategory =

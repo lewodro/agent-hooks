@@ -7,6 +7,7 @@ Solana-first event ingress and TypeScript adapters for waking an off-chain agent
 | [OpenClaw Gateway](https://docs.openclaw.ai/gateway/config-hooks) | `@agent-hooks/trigger-hooks/openclaw` | Bearer-authenticated `/hooks/wake` |
 | [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks) | `@agent-hooks/trigger-hooks/hermes` | Signed Generic V2 webhook |
 | LangGraph, CrewAI, custom worker | `@agent-hooks/trigger-hooks/webhook` | HTTPS JSON, optional bearer token and HMAC |
+| Agent-created Solana token proposal | `@agent-hooks/trigger-hooks/launch-proposals` | Authenticated request to Rust Trigger Service; human review required |
 
 These are outbound dispatchers: configure the receiving endpoint on your own agent host. LangGraph and CrewAI are webhook-compatible examples, not bundled framework plugins.
 
@@ -70,6 +71,31 @@ const customAgent = createWebhookDispatcher({
 ```
 
 Use exactly one dispatcher as the `TriggerEngine`'s `dispatcher`. URLs must use HTTPS except for loopback development addresses. Never commit tokens or webhook secrets.
+
+## Agent-authored token launch proposals
+
+Expose this client only as a narrow tool in your agent runtime. It submits a validated, fingerprinted request to the Rust service using a separate agent credential:
+
+```ts
+import { createTokenLaunchProposalClient } from "@agent-hooks/trigger-hooks/launch-proposals";
+
+const launchClient = createTokenLaunchProposalClient({
+  serviceUrl: process.env.TRIGGER_SERVICE_URL!,
+  agentToken: process.env.TRIGGER_AGENT_TOKEN!,
+});
+
+const proposal = await launchClient.propose({
+  name: "Example Finance Token",
+  symbol: "EFT",
+  decimals: 6,
+  initialSupply: 1_000_000_000n, // exact integer base units
+  network: "devnet",
+  metadataUri: "https://example.com/token.json",
+});
+console.log(proposal.id, proposal.status); // pending_review
+```
+
+An independent reviewer credential is required to approve/reject the proposal. Neither the client nor Trigger Service creates a mint, signs, or broadcasts. The approved fingerprint must be revalidated by a separate wallet-backed launch app before the human signs. See the [Rust service setup](../../packages/trigger-service/README.md).
 
 ## Match and deliver a trigger
 

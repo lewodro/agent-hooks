@@ -42,6 +42,8 @@ The loop is continuous: observe an event, evaluate deterministic guards, record 
 
 For on-chain-to-agent activation, [`@agent-hooks/trigger-hooks`](packages/trigger-hooks/README.md) provides Solana RPC log subscriptions, HMAC-signed webhook verification, deterministic predicates, and replay-safe in-memory deduplication. It wakes a host-owned worker; it does not decode every protocol, operate a durable queue, sign, or broadcast. See the [integration and deployment guide](docs/trigger-hooks.md) for current capabilities and limitations.
 
+An agent can also submit a Solana token-launch request through the Rust Trigger Service and receive a fingerprinted review record. A separate reviewer credential approves or rejects it; approval is not a mint transaction or a broadcast. The final wallet-backed launch step is intentionally left to a human-approved transaction application. See the [runnable OpenClaw bridge and launch proposal guide](packages/trigger-service/README.md).
+
 The framework keeps execution, memory, and planning as separate interfaces. Protocol adapters normalize events; the SDK and Rust runtime compose, simulate, and evaluate hooks; the Anchor program provides an on-chain composition registry and an early eligibility executor; `agent-brain` stores event and outcome experience; and agent integrations create proposals through policy checks before an operator approves changes.
 
 The feedback loop is:
