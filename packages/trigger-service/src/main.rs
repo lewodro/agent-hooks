@@ -357,7 +357,7 @@ mod tests {
             "name": "Example Finance Token",
             "symbol": "EFT",
             "decimals": 6,
-            "initial_supply": 1000000,
+            "initial_supply": "1000000",
             "network": "devnet",
             "metadata_uri": "https://example.com/token.json"
         })

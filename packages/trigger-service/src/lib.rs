@@ -84,8 +84,8 @@ pub struct TokenLaunchRequest {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
-    /// Initial supply in integer base units. Never use floating point token amounts.
-    pub initial_supply: u64,
+    /// Initial supply as a decimal integer string in base units, avoiding JSON float rounding.
+    pub initial_supply: String,
     pub network: String,
     pub metadata_uri: String,
 }
@@ -382,7 +382,7 @@ fn validate_token_launch(request: &TokenLaunchRequest) -> Result<(), String> {
     if request.decimals > 9 {
         return Err("token decimals must be between 0 and 9".into());
     }
-    if request.initial_supply == 0 {
+    if !matches!(request.initial_supply.parse::<u64>(), Ok(amount) if amount > 0) {
         return Err("initial supply must be a positive integer number of base units".into());
     }
     if request.network != "devnet" && request.network != "mainnet-beta" {
@@ -486,7 +486,7 @@ mod tests {
             name: "Example Finance Token".into(),
             symbol: "EFT".into(),
             decimals: 6,
-            initial_supply: 1_000_000_000,
+            initial_supply: "1000000000".into(),
             network: "devnet".into(),
             metadata_uri: "https://example.com/token.json".into(),
         }
@@ -552,7 +552,7 @@ mod tests {
         request.metadata_uri = "http://example.com/token.json".into();
         assert!(store.propose_token_launch(request).is_err());
         let mut request = token_launch();
-        request.initial_supply = 0;
+        request.initial_supply = "0".into();
         assert!(store.propose_token_launch(request).is_err());
         let _ = fs::remove_file(path);
     }
