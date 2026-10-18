@@ -1,4 +1,6 @@
-use agent_hooks_trigger_service::{verify_signature, Observation, Trigger, TriggerStore};
+use agent_hooks_trigger_service::{
+    verify_signature, LaunchReviewDecision, Observation, TokenLaunchRequest, Trigger, TriggerStore,
+};
 use serde::Deserialize;
 use std::{
     env,
@@ -10,11 +12,18 @@ use std::{
 struct App {
     store: TriggerStore,
     secret: Option<String>,
+    agent_secret: Option<String>,
+    review_secret: Option<String>,
 }
 
 #[derive(Deserialize)]
 struct FailureBody {
     error: String,
+}
+
+#[derive(Deserialize)]
+struct LaunchReviewBody {
+    reviewer: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,6 +33,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = App {
         store: TriggerStore::load(state_file)?,
         secret: env::var("TRIGGER_WEBHOOK_SECRET").ok(),
+        agent_secret: env::var("TRIGGER_AGENT_SECRET").ok(),
+        review_secret: env::var("TRIGGER_REVIEW_SECRET").ok(),
     };
     let listener = TcpListener::bind(&bind)?;
     println!("agent-hooks trigger service listening on http://{bind}");
@@ -62,23 +73,119 @@ fn route(
             200,
             serde_json::json!({"ok": true, "service": "trigger-hooks"}),
         ),
-        ("GET", "/v1/triggers") => (200, serde_json::json!(app.store.triggers())),
-        ("GET", "/v1/jobs") => (200, serde_json::json!(app.store.jobs())),
-        ("POST", "/v1/triggers") => match serde_json::from_str::<Trigger>(body) {
-            Ok(trigger) => match app.store.register(trigger.clone()) {
-                Ok(()) => (201, serde_json::json!(trigger)),
-                Err(error) if error == "trigger already exists" => error_response(409, error),
-                Err(error) => error_response(400, error),
+        ("GET", "/v1/triggers") => match auth_error(headers, &app.review_secret) {
+            Some(error) => error,
+            None => (200, serde_json::json!(app.store.triggers())),
+        },
+        ("GET", "/v1/jobs") => match auth_error(headers, &app.review_secret) {
+            Some(error) => error,
+            None => (200, serde_json::json!(app.store.jobs())),
+        },
+        ("GET", "/v1/token-launch-proposals") => match auth_error(headers, &app.review_secret) {
+            Some(error) => error,
+            None => (200, serde_json::json!(app.store.token_launch_proposals())),
+        },
+        ("POST", "/v1/triggers") => match auth_error(headers, &app.review_secret) {
+            Some(error) => error,
+            None => match serde_json::from_str::<Trigger>(body) {
+                Ok(trigger) => match app.store.register(trigger.clone()) {
+                    Ok(()) => (201, serde_json::json!(trigger)),
+                    Err(error) if error == "trigger already exists" => error_response(409, error),
+                    Err(error) => error_response(400, error),
+                },
+                Err(error) => error_response(400, format!("invalid trigger JSON: {error}")),
             },
-            Err(error) => error_response(400, format!("invalid trigger JSON: {error}")),
         },
         ("POST", "/v1/observations") => ingest(app, headers, body),
-        ("POST", "/v1/jobs/claim") => match app.store.claim_next() {
-            Ok(job) => (200, serde_json::json!({"job": job})),
-            Err(error) => error_response(500, error),
+        ("POST", "/v1/jobs/claim") => match auth_error(headers, &app.agent_secret) {
+            Some(error) => error,
+            None => match app.store.claim_next() {
+                Ok(job) => (200, serde_json::json!({"job": job})),
+                Err(error) => error_response(500, error),
+            },
         },
-        _ if method == "POST" => transition(app, path, body),
+        ("POST", "/v1/token-launch-proposals") => match auth_error(headers, &app.agent_secret) {
+            Some(error) => error,
+            None => match serde_json::from_str::<TokenLaunchRequest>(body) {
+                Ok(request) => match app.store.propose_token_launch(request) {
+                    Ok(proposal) => (202, serde_json::json!(proposal)),
+                    Err(error) => error_response(400, error),
+                },
+                Err(error) => error_response(400, format!("invalid launch proposal JSON: {error}")),
+            },
+        },
+        _ if method == "POST" && path.starts_with("/v1/token-launch-proposals/") => {
+            match auth_error(headers, &app.review_secret) {
+                Some(error) => error,
+                None => review_launch(app, path, body),
+            }
+        }
+        _ if method == "POST" => match auth_error(headers, &app.agent_secret) {
+            Some(error) => error,
+            None => transition(app, path, body),
+        },
         _ => error_response(404, "not found"),
+    }
+}
+
+fn auth_error(
+    headers: &[(String, String)],
+    secret: &Option<String>,
+) -> Option<(u16, serde_json::Value)> {
+    let Some(secret) = secret.as_deref() else {
+        return Some(error_response(503, "this API role is not configured"));
+    };
+    let provided = header(headers, "authorization")
+        .and_then(|value| value.strip_prefix("Bearer ").map(str::to_owned));
+    if provided
+        .as_deref()
+        .is_some_and(|provided| secret_matches(secret, provided))
+    {
+        None
+    } else {
+        Some(error_response(401, "invalid bearer credential"))
+    }
+}
+
+fn secret_matches(expected: &str, provided: &str) -> bool {
+    use hmac::{Hmac, Mac};
+    use sha2::Sha256;
+    type HmacSha256 = Hmac<Sha256>;
+
+    let Ok(mut expected_mac) = HmacSha256::new_from_slice(expected.as_bytes()) else {
+        return false;
+    };
+    expected_mac.update(b"agent-hooks-api-token-v1");
+    let expected_tag = expected_mac.finalize().into_bytes();
+    let Ok(mut provided_mac) = HmacSha256::new_from_slice(provided.as_bytes()) else {
+        return false;
+    };
+    provided_mac.update(b"agent-hooks-api-token-v1");
+    provided_mac.verify_slice(&expected_tag).is_ok()
+}
+
+fn review_launch(app: &App, path: &str, body: &str) -> (u16, serde_json::Value) {
+    let Some(rest) = path.strip_prefix("/v1/token-launch-proposals/") else {
+        return error_response(404, "not found");
+    };
+    let Some((id, action)) = rest.rsplit_once('/') else {
+        return error_response(404, "not found");
+    };
+    let decision = match action {
+        "approve" => LaunchReviewDecision::Approve,
+        "reject" => LaunchReviewDecision::Reject,
+        _ => return error_response(404, "not found"),
+    };
+    match serde_json::from_str::<LaunchReviewBody>(body) {
+        Ok(review) => match app
+            .store
+            .review_token_launch(id, decision, &review.reviewer)
+        {
+            Ok(proposal) => (200, serde_json::json!(proposal)),
+            Err(error) if error == "token launch proposal not found" => error_response(404, error),
+            Err(error) => error_response(409, error),
+        },
+        Err(error) => error_response(400, format!("invalid review JSON: {error}")),
     }
 }
 
@@ -198,8 +305,10 @@ fn write_response(
         202 => "Accepted",
         400 => "Bad Request",
         401 => "Unauthorized",
+        403 => "Forbidden",
         404 => "Not Found",
         409 => "Conflict",
+        503 => "Service Unavailable",
         _ => "Internal Server Error",
     };
     write!(stream, "HTTP/1.1 {status} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len())?;
@@ -212,17 +321,70 @@ mod tests {
 
     #[test]
     fn health_route_is_available() {
-        let path = std::env::temp_dir().join(format!(
+        let state_path = std::env::temp_dir().join(format!(
             "agent-hooks-route-test-{}.json",
             std::process::id()
         ));
         let app = App {
-            store: TriggerStore::load(path.clone()).unwrap(),
+            store: TriggerStore::load(state_path.clone()).unwrap(),
             secret: None,
+            agent_secret: None,
+            review_secret: None,
         };
         let (status, body) = route(&app, "GET", "/health", &[], "");
         assert_eq!(status, 200);
         assert_eq!(body["ok"], true);
-        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(state_path);
+    }
+
+    #[test]
+    fn agent_can_propose_but_only_reviewer_can_approve_launch() {
+        let state_path = std::env::temp_dir().join(format!(
+            "agent-hooks-launch-route-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let app = App {
+            store: TriggerStore::load(state_path.clone()).unwrap(),
+            secret: None,
+            agent_secret: Some("agent-secret".into()),
+            review_secret: Some("review-secret".into()),
+        };
+        let request = serde_json::json!({
+            "name": "Example Finance Token",
+            "symbol": "EFT",
+            "decimals": 6,
+            "initial_supply": 1000000,
+            "network": "devnet",
+            "metadata_uri": "https://example.com/token.json"
+        })
+        .to_string();
+        let agent_headers = vec![("authorization".into(), "Bearer agent-secret".into())];
+        let (status, proposal) = route(
+            &app,
+            "POST",
+            "/v1/token-launch-proposals",
+            &agent_headers,
+            &request,
+        );
+        assert_eq!(status, 202);
+        assert_eq!(proposal["status"], "pending_review");
+        let id = proposal["id"].as_str().unwrap();
+
+        let reviewer_headers = vec![("authorization".into(), "Bearer review-secret".into())];
+        let route_path = format!("/v1/token-launch-proposals/{id}/approve");
+        let (status, reviewed) = route(
+            &app,
+            "POST",
+            &route_path,
+            &reviewer_headers,
+            r#"{"reviewer":"operator"}"#,
+        );
+        assert_eq!(status, 200);
+        assert_eq!(reviewed["status"], "approved");
+        let _ = std::fs::remove_file(state_path);
     }
 }
