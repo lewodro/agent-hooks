@@ -8,6 +8,7 @@ Solana-first event ingress and TypeScript adapters for waking an off-chain agent
 | [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks) | `@agent-hooks/trigger-hooks/hermes` | Signed Generic V2 webhook |
 | LangGraph, CrewAI, custom worker | `@agent-hooks/trigger-hooks/webhook` | HTTPS JSON, optional bearer token and HMAC |
 | Agent-created Solana token proposal | `@agent-hooks/trigger-hooks/launch-proposals` | Authenticated request to Rust Trigger Service; human review required |
+| Approved fixed-supply Solana token launch | `@agent-hooks/trigger-hooks/token-launch` | Token transaction sent only through an explicitly invoked connected wallet |
 
 These are outbound dispatchers: configure the receiving endpoint on your own agent host. LangGraph and CrewAI are webhook-compatible examples, not bundled framework plugins.
 
@@ -95,7 +96,24 @@ const proposal = await launchClient.propose({
 console.log(proposal.id, proposal.status); // pending_review
 ```
 
-An independent reviewer credential is required to approve/reject the proposal. Neither the client nor Trigger Service creates a mint, signs, or broadcasts. The approved fingerprint must be revalidated by a separate wallet-backed launch app before the human signs. See the [Rust service setup](../../packages/trigger-service/README.md).
+An independent reviewer credential is required to approve/reject the proposal. The Rust service only stores/reviews proposals. A separate TypeScript wallet helper can assemble a classic SPL fixed-supply mint transaction from an approved proposal and invoke the connected wallet adapter; the wallet signs and pays, and the helper checks the RPC genesis hash against the proposal's cluster. Keep this call behind an explicit human-facing launch action. Test on devnet first.
+
+```ts
+import { Connection } from "@solana/web3.js";
+import { launchApprovedToken } from "@agent-hooks/trigger-hooks/token-launch";
+
+// `proposal` came from the reviewer-controlled service; `wallet` is the
+// connected wallet adapter. Render every value below to the user first.
+const result = await launchApprovedToken(
+  proposal,
+  wallet,
+  new Connection(process.env.SOLANA_RPC_URL!, "confirmed"),
+  { async confirm(details) { return await showReviewDialog(details); } },
+);
+console.log(result.mintAddress, result.signature, result.explorerUrl);
+```
+
+The helper recomputes the Rust service's canonical request fingerprint and requires an explicit UI confirmation callback before it contacts the RPC or wallet. The v1 transaction creates a standard SPL mint, creates the launcher's associated token account, mints the exact approved base-unit supply, then permanently revokes mint authority. It does not create a DEX pool, establish liquidity, or place/route trades. Although proposals include a metadata URI for the host workflow, this v1 transaction does not register that URI on-chain. Audit the transaction in the wallet before signing; mainnet execution spends SOL and creates a public asset. See the [Rust service setup](../../packages/trigger-service/README.md).
 
 ## Match and deliver a trigger
 
