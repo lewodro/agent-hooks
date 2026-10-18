@@ -1,6 +1,6 @@
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
-use sha2::Sha256;
+use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
     fs,
@@ -64,10 +64,43 @@ pub struct WakeJob {
     pub updated_at: u64,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LaunchReviewStatus {
+    PendingReview,
+    Approved,
+    Rejected,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct TokenLaunchRequest {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u8,
+    /// Initial supply in integer base units. Never use floating point token amounts.
+    pub initial_supply: u64,
+    pub network: String,
+    pub metadata_uri: String,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct TokenLaunchProposal {
+    pub id: String,
+    #[serde(flatten)]
+    pub request: TokenLaunchRequest,
+    pub status: LaunchReviewStatus,
+    pub fingerprint: String,
+    pub created_at: u64,
+    pub reviewer: Option<String>,
+    pub reviewed_at: Option<u64>,
+}
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 struct State {
     triggers: Vec<Trigger>,
     jobs: Vec<WakeJob>,
+    #[serde(default)]
+    token_launch_proposals: Vec<TokenLaunchProposal>,
     claimed: HashSet<String>,
     last_slot: u64,
 }
@@ -98,6 +131,47 @@ impl TriggerStore {
 
     pub fn jobs(&self) -> Vec<WakeJob> {
         self.state.lock().expect("state lock poisoned").jobs.clone()
+    }
+
+    pub fn token_launch_proposals(&self) -> Vec<TokenLaunchProposal> {
+        self.state
+            .lock()
+            .expect("state lock poisoned")
+            .token_launch_proposals
+            .clone()
+    }
+
+    /// Stores an agent-authored token launch request; this never creates or signs a chain transaction.
+    pub fn propose_token_launch(
+        &self,
+        request: TokenLaunchRequest,
+    ) -> Result<TokenLaunchProposal, String> {
+        validate_token_launch(&request)?;
+        let canonical = serde_json::to_vec(&request).map_err(|error| error.to_string())?;
+        let fingerprint = format!("{:x}", Sha256::digest(canonical));
+        let mut state = self.state.lock().map_err(|_| "state lock poisoned")?;
+        if let Some(existing) = state
+            .token_launch_proposals
+            .iter()
+            .find(|proposal| proposal.fingerprint == fingerprint)
+        {
+            return Ok(existing.clone());
+        }
+        if state.token_launch_proposals.len() >= 10_000 {
+            return Err("token launch proposal queue is full".into());
+        }
+        let proposal = TokenLaunchProposal {
+            id: fingerprint.clone(),
+            request,
+            status: LaunchReviewStatus::PendingReview,
+            fingerprint,
+            created_at: now(),
+            reviewer: None,
+            reviewed_at: None,
+        };
+        state.token_launch_proposals.push(proposal.clone());
+        persist(&self.state_file, &state)?;
+        Ok(proposal)
     }
 
     pub fn register(&self, trigger: Trigger) -> Result<(), String> {
@@ -251,6 +325,43 @@ fn validate_observation(observation: &Observation) -> Result<(), String> {
     Ok(())
 }
 
+fn validate_token_launch(request: &TokenLaunchRequest) -> Result<(), String> {
+    let name = request.name.trim();
+    if name.is_empty() || name.len() > 32 {
+        return Err("token name must contain 1-32 characters".into());
+    }
+    if !(2..=10).contains(&request.symbol.len())
+        || !request
+            .symbol
+            .bytes()
+            .all(|byte| byte.is_ascii_uppercase() || byte.is_ascii_digit())
+    {
+        return Err("token symbol must contain 2-10 uppercase ASCII letters or digits".into());
+    }
+    if request.decimals > 9 {
+        return Err("token decimals must be between 0 and 9".into());
+    }
+    if request.initial_supply == 0 {
+        return Err("initial supply must be a positive integer number of base units".into());
+    }
+    if request.network != "devnet" && request.network != "mainnet-beta" {
+        return Err("network must be devnet or mainnet-beta".into());
+    }
+    let host = request
+        .metadata_uri
+        .strip_prefix("https://")
+        .and_then(|rest| rest.split(['/', '?', '#']).next());
+    if host.is_none_or(|host| {
+        host.is_empty() || host.contains('@') || host.chars().any(char::is_whitespace)
+    }) {
+        return Err("metadata URI must be an HTTPS URL with a valid host".into());
+    }
+    if request.metadata_uri.len() > 2_048 {
+        return Err("metadata URI must be at most 2048 characters".into());
+    }
+    Ok(())
+}
+
 fn matches(trigger: &Trigger, observation: &Observation) -> bool {
     trigger
         .program_id
@@ -303,12 +414,16 @@ fn now() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_TEST_FILE: AtomicU64 = AtomicU64::new(0);
 
     fn store() -> (TriggerStore, PathBuf) {
         let path = std::env::temp_dir().join(format!(
-            "agent-hooks-trigger-test-{}-{}.json",
+            "agent-hooks-trigger-test-{}-{}-{}.json",
             std::process::id(),
-            now()
+            now(),
+            NEXT_TEST_FILE.fetch_add(1, Ordering::Relaxed)
         ));
         (TriggerStore::load(path.clone()).unwrap(), path)
     }
@@ -322,6 +437,17 @@ mod tests {
             event_kind: Some("beforeLiquidate".into()),
             ltv_bps: Some(8_500),
             payload: serde_json::json!({}),
+        }
+    }
+
+    fn token_launch() -> TokenLaunchRequest {
+        TokenLaunchRequest {
+            name: "Example Finance Token".into(),
+            symbol: "EFT".into(),
+            decimals: 6,
+            initial_supply: 1_000_000_000,
+            network: "devnet".into(),
+            metadata_uri: "https://example.com/token.json".into(),
         }
     }
 
@@ -365,5 +491,28 @@ mod tests {
         );
         assert!(verify_signature("secret", &timestamp, body, &signature).is_ok());
         assert!(verify_signature("secret", &timestamp, "{\"changed\":true}", &signature).is_err());
+    }
+
+    #[test]
+    fn token_launch_requests_are_validated_and_deduplicated_as_proposals() {
+        let (store, path) = store();
+        let first = store.propose_token_launch(token_launch()).unwrap();
+        let replay = store.propose_token_launch(token_launch()).unwrap();
+        assert_eq!(first.id, replay.id);
+        assert_eq!(first.status, LaunchReviewStatus::PendingReview);
+        assert_eq!(store.token_launch_proposals().len(), 1);
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn token_launch_rejects_unsafe_metadata_and_supply() {
+        let (store, path) = store();
+        let mut request = token_launch();
+        request.metadata_uri = "http://example.com/token.json".into();
+        assert!(store.propose_token_launch(request).is_err());
+        let mut request = token_launch();
+        request.initial_supply = 0;
+        assert!(store.propose_token_launch(request).is_err());
+        let _ = fs::remove_file(path);
     }
 }
