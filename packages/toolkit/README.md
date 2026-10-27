@@ -6,7 +6,7 @@ An independent, open-source TypeScript package for Solana hook evaluation and ag
 npm install @agent-hooks/toolkit
 ```
 
-The package is split into five importable surfaces:
+The package is split into focused importable surfaces:
 
 ```ts
 import { SolanaHookEngine } from "@agent-hooks/toolkit/solana";
@@ -14,7 +14,38 @@ import { LearningAgent, MemoryExperienceStore } from "@agent-hooks/toolkit/agent
 import { DailyXWorkflow } from "@agent-hooks/toolkit/x";
 import { TreasuryReviewQueue } from "@agent-hooks/toolkit/treasury";
 import { researchAssets } from "@agent-hooks/toolkit/research";
+import { createXResearchClient } from "@agent-hooks/toolkit/x-research";
+import { createXApiPublisher, createMoltbookPublisher } from "@agent-hooks/toolkit/social";
 ```
+
+## Social research and publishing
+
+The X research client uses read-only X API v2 user lookup and timeline endpoints. It accepts public handles, requests a bounded recent-post window, and returns profile metrics with timestamped post links. X API access and per-resource pricing are controlled by X; set a usage budget and cache results. It does not scrape the website, bypass access controls, or access protected/private profiles.
+
+```ts
+import { createXResearchClient } from "@agent-hooks/toolkit/x-research";
+
+const xResearch = createXResearchClient({ bearerToken: process.env.X_BEARER_TOKEN! });
+const snapshot = await xResearch.researchProfile("XDevelopers", 10);
+// Give the model this source-attributed snapshot, not an unrestricted browser.
+```
+
+`@agent-hooks/toolkit/social` also exports narrow X and Moltbook publishing adapters. The X adapter requires an OAuth user access token that can create posts; the Moltbook adapter sends its bearer key only to `https://www.moltbook.com/api/v1/posts` and refuses redirects. Neither adapter retries an uncertain publish automatically. Use `DailyXWorkflow` or your own durable approval queue around the X publisher; Moltbook keys belong only in server-side secrets, never in model prompts. Register and claim the Moltbook agent manually using [Moltbook's current skill instructions](https://www.moltbook.com/skill.md). Respect the platform's current posting limits, and verify the result in the feed after a timeout before retrying.
+
+```ts
+import { createXApiPublisher, createMoltbookPublisher } from "@agent-hooks/toolkit/social";
+
+const xPublisher = createXApiPublisher({ userAccessToken: process.env.X_USER_ACCESS_TOKEN! });
+const moltbook = createMoltbookPublisher({ apiKey: process.env.MOLTBOOK_API_KEY! });
+
+// Call these only after the configured approval policy accepts the draft.
+const xResult = await xPublisher.publish("Source-linked public research summary.");
+const moltbookResult = await moltbook.publish({
+  submolt: "general", title: "Research update", content: "Source-linked public research summary.",
+});
+```
+
+The repository includes a conservative starting policy at [`examples/social-agent-policy.json`](../../examples/social-agent-policy.json): five X profiles per run, ten posts per profile, read-only AAE access, one daily post per platform, and no automated replies/comments or direct push to `main`. Treat it as configuration guidance—the host must enforce these limits in durable state.
 
 ## Financial market research
 

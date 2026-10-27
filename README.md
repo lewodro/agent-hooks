@@ -46,6 +46,8 @@ An agent can submit a fingerprinted Solana token-launch request through the Rust
 
 For research, [`@agent-hooks/toolkit/research`](packages/toolkit/README.md#financial-market-research) provides source-attributed CoinGecko market snapshots and DEX Screener pair/liquidity lookups. It is a focused starting point—not a full market terminal or investment-advice system.
 
+The standalone toolkit now also has a bounded read-only X profile/timeline client and official-API publisher adapters for X and Moltbook. Publishing clients are separate from model inference and should sit behind a durable approval/rate-limit policy; the included [social-agent policy example](examples/social-agent-policy.json) starts in draft-only mode. See [social research and publishing](packages/toolkit/README.md#social-research-and-publishing).
+
 The framework keeps execution, memory, and planning as separate interfaces. Protocol adapters normalize events; the SDK and Rust runtime compose, simulate, and evaluate hooks; the Anchor program provides an on-chain composition registry and an early eligibility executor; `agent-brain` stores event and outcome experience; and agent integrations create proposals through policy checks before an operator approves changes.
 
 The feedback loop is:
@@ -91,7 +93,7 @@ The separate `agent-hooks-executor` composition registry remains an early protot
 | `agent-brain` (`packages/agent-brain`) | Schema-validated experience memory with bigint-safe PostgreSQL persistence, bounded cursor replay, local subscriptions, and explicit provenance; no model training included | Protocol-independent event contracts and agent planners; independent of adapters and SDK orchestration |
 | `anchor-program` (`packages/anchor-program`) | Anchor 0.31 registry prototype plus `agent-hooks-policy` slippage/cooldown CPI gate example | Solana programs and SDK clients |
 | `@agent-hooks/agent-runtime` (`packages/agent-runtime`) | Versioned proposals, policy validation, and content-bound operator approvals | Brains, simulators, CLI, and operator approval flows |
-| `@agent-hooks/toolkit` (`packages/toolkit`) | Standalone TypeScript hooks, experience memory, X workflow, and treasury review primitives | Independent agent applications; no required runtime dependencies |
+| `@agent-hooks/toolkit` (`packages/toolkit`) | Standalone TypeScript hooks, experience memory, market/social research, X/Moltbook publishers, and treasury review primitives | Independent agent applications; no required runtime dependencies |
 | `@agent-hooks/marginfi-adapter` | Marginfi event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/kamino-adapter` | Kamino Lend event and market normalization | SDK and hook-runtime |
 | `@agent-hooks/solend-adapter` | Solend event and market normalization | SDK and hook-runtime |
