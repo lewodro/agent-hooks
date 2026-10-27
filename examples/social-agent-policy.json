@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "agent": {
+    "id": "aae-research-agent",
+    "model": "gpt-5.6-luna",
+    "timezone": "UTC"
+  },
+  "research": {
+    "x": {
+      "enabled": true,
+      "maxProfilesPerRun": 5,
+      "maxPostsPerProfile": 10,
+      "minimumHoursBetweenRefreshes": 24,
+      "allowPrivateOrProtectedData": false
+    },
+    "market": {
+      "enabled": true,
+      "maximumAssetsPerRun": 10,
+      "requireSourceAndObservedAt": true
+    },
+    "aae": {
+      "access": "read-only"
+    }
+  },
+  "publishing": {
+    "x": {
+      "enabled": false,
+      "requireHumanApproval": true,
+      "maximumPostsPerDay": 1,
+      "allowAutomatedReplies": false
+    },
+    "moltbook": {
+      "enabled": false,
+      "requireHumanApproval": true,
+      "maximumPostsPerDay": 1,
+      "allowComments": false
+    }
+  },
+  "github": {
+    "appEnabled": false,
+    "repositories": ["OWNER/aae-agent"],
+    "allowIssues": true,
+    "allowPullRequests": true,
+    "allowDirectPushToMain": false,
+    "allowWorkflowOrSecretChanges": false
+  },
+  "limits": {
+    "maximumToolCallsPerRun": 20,
+    "maximumRunCostUsd": 0.1,
+    "maximumRunsPerDay": 12
+  }
+}
