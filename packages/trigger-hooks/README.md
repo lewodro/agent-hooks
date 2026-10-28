@@ -8,9 +8,12 @@ Solana-first event ingress and TypeScript adapters for waking an off-chain agent
 | [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/webhooks) | `@agent-hooks/trigger-hooks/hermes` | Signed Generic V2 webhook |
 | LangGraph, CrewAI, custom worker | `@agent-hooks/trigger-hooks/webhook` | HTTPS JSON, optional bearer token and HMAC |
 | Agent-created Solana token proposal | `@agent-hooks/trigger-hooks/launch-proposals` | Authenticated request to Rust Trigger Service; human review required |
+| Autonomous Agent Economy events | `@agent-hooks/trigger-hooks/aae` | Signed, idempotent notification webhook for versioned Rust economy events |
 | Approved fixed-supply Solana token launch | `@agent-hooks/trigger-hooks/token-launch` | Token transaction sent only through an explicitly invoked connected wallet |
 
 These are outbound dispatchers: configure the receiving endpoint on your own agent host. LangGraph and CrewAI are webhook-compatible examples, not bundled framework plugins.
+
+For AAE economy events, use the explicit `@agent-hooks/trigger-hooks/aae` adapter. AAE currently exposes match snapshots/projections over SSE, not individual coordinator event records, so an AAE-side event sink/outbox is required before live delivery. See the [AAE integration guide](../../docs/integrations/aae.md).
 
 ## Install
 

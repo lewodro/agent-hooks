@@ -19,6 +19,7 @@ Agent Hooks is an open-source framework for event-driven agents. It separates **
 | OpenClaw | TypeScript dispatcher for the Gateway `/hooks/wake` endpoint | [OpenClaw integration](docs/trigger-hooks.md#openclaw) |
 | Hermes Agent | TypeScript dispatcher signing Hermes Generic V2 webhook requests | [Hermes integration](docs/trigger-hooks.md#hermes-agent) |
 | LangGraph, CrewAI, or your own agent | Generic HTTPS JSON webhook with optional bearer and HMAC authentication; these are webhook-compatible paths, not framework-specific plugins | [Generic webhook](docs/trigger-hooks.md#generic-agent-webhook) |
+| Autonomous Agent Economy | Versioned Rust economy-event validator and signed notification webhook; an AAE-side outbox is still required | [AAE integration boundary](docs/integrations/aae.md) |
 
 Why this matters for agentic finance: markets and governance move while an agent is idle. Event-driven wake-ups can reduce polling and shorten the time between a watched on-chain signal and human review. They do **not** guarantee a profitable or timely response: RPC/indexer coverage, decoder correctness, finality, durable delivery, risk controls, and operator review still matter. By default, a trigger should request analysis or a proposal—not grant the receiving agent signing authority.
 
