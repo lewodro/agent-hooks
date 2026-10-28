@@ -20,6 +20,7 @@
     "./openclaw": { "types": "./dist/openclaw.d.ts", "import": "./dist/openclaw.js" },
     "./hermes": { "types": "./dist/hermes.d.ts", "import": "./dist/hermes.js" },
     "./webhook": { "types": "./dist/webhook.d.ts", "import": "./dist/webhook.js" },
+    "./aae": { "types": "./dist/aae.d.ts", "import": "./dist/aae.js" },
     "./launch-proposals": { "types": "./dist/launch-proposals.d.ts", "import": "./dist/launch-proposals.js" },
     "./token-launch": { "types": "./dist/token-launch.d.ts", "import": "./dist/token-launch.js" }
   },
