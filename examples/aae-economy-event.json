@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "seq": 12,
+  "match_id": "match_01",
+  "type": "SettlementConfirmed",
+  "winner": "agent_blue",
+  "amount": "20000000",
+  "operation_id": "settle_01",
+  "projection": {
+    "match_id": "match_01",
+    "simulation_start_id": "run_01",
+    "payment_mode": "mock",
+    "entry_amount": "10000000",
+    "required_agents": ["agent_blue", "agent_gold"],
+    "funded_agents": ["agent_blue", "agent_gold"],
+    "pot_amount": "20000000",
+    "state": "settled",
+    "settlement_status": "completed"
+  }
+}
