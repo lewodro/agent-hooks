@@ -1,0 +1,23 @@
+{
+  "rules": [
+    {
+      "id": "solana-large-24h-move",
+      "assetKey": "coingecko:solana",
+      "metric": "change24hPct",
+      "operator": "gte",
+      "threshold": 8,
+      "severity": "warning",
+      "maxAgeMs": 120000
+    },
+    {
+      "id": "solana-pair-liquidity-review",
+      "assetKey": "solana:REPLACE_WITH_VERIFIED_PAIR_ADDRESS",
+      "metric": "priceChange24hPct",
+      "operator": "lte",
+      "threshold": -12,
+      "severity": "critical",
+      "maxAgeMs": 120000,
+      "minimumLiquidityUsd": 100000
+    }
+  ]
+}
