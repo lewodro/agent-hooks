@@ -22,6 +22,8 @@ export interface DexPairSnapshot {
   volume24hUsd: number | null;
   priceChange24hPct: number | null;
   pairCreatedAt: string | null;
+  /** Local receipt time for this provider response; not the chain's pair creation time. */
+  observedAt: string;
   source: string;
 }
 
@@ -61,8 +63,8 @@ export async function getCoinMarkets(ids: readonly string[], options: ResearchOp
     const item = record(row, "CoinGecko market row");
     return {
       assetId: stringField(item, "id"), symbol: stringField(item, "symbol").toUpperCase(), name: stringField(item, "name"),
-      priceUsd: nullableNumber(item.current_price), marketCapUsd: nullableNumber(item.market_cap),
-      volume24hUsd: nullableNumber(item.total_volume), change24hPct: nullableNumber(item.price_change_percentage_24h),
+      priceUsd: nonNegativeNumber(item.current_price), marketCapUsd: nonNegativeNumber(item.market_cap),
+      volume24hUsd: nonNegativeNumber(item.total_volume), change24hPct: nullableNumber(item.price_change_percentage_24h),
       observedAt, source: "coingecko:coins/markets",
     };
   });
@@ -79,30 +81,34 @@ export async function getDexPairs(tokenAddress: string, options: ResearchOptions
   const payload: unknown = await response.json();
   const rows = record(payload, "DEX Screener response").pairs;
   if (rows !== null && rows !== undefined && !Array.isArray(rows)) throw new Error("DEX Screener returned invalid pairs");
+  const observedAt = (options.now ?? (() => new Date()))().toISOString();
   return (rows ?? []).slice(0, 100).map((row: unknown) => {
     const item = record(row, "DEX pair");
     const baseToken = record(item.baseToken, "DEX base token");
     const quoteToken = record(item.quoteToken, "DEX quote token");
     const liquidity = item.liquidity === null || item.liquidity === undefined ? null : record(item.liquidity, "DEX liquidity");
     const change = item.priceChange === null || item.priceChange === undefined ? null : record(item.priceChange, "DEX price change");
-    const createdAt = nullableNumber(item.pairCreatedAt);
+    const createdAt = nonNegativeNumber(item.pairCreatedAt);
     return {
       chainId: stringField(item, "chainId"), dexId: stringField(item, "dexId"), pairAddress: stringField(item, "pairAddress"),
       baseToken: { address: stringField(baseToken, "address"), symbol: stringField(baseToken, "symbol"), name: stringField(baseToken, "name") },
       quoteToken: { address: stringField(quoteToken, "address"), symbol: stringField(quoteToken, "symbol"), name: stringField(quoteToken, "name") },
-      priceUsd: nullableNumber(item.priceUsd), liquidityUsd: liquidity ? nullableNumber(liquidity.usd) : null,
-      volume24hUsd: item.volume === null || item.volume === undefined ? null : nullableNumber(record(item.volume, "DEX volume").h24),
+      priceUsd: nonNegativeNumber(item.priceUsd), liquidityUsd: liquidity ? nonNegativeNumber(liquidity.usd) : null,
+      volume24hUsd: item.volume === null || item.volume === undefined ? null : nonNegativeNumber(record(item.volume, "DEX volume").h24),
       priceChange24hPct: change ? nullableNumber(change.h24) : null,
-      pairCreatedAt: createdAt === null ? null : new Date(createdAt).toISOString(), source: "dexscreener:token-pairs",
+      pairCreatedAt: createdAt === null ? null : new Date(createdAt).toISOString(), observedAt, source: "dexscreener:token-pairs",
     };
   });
 }
 
 export async function researchAssets(input: { coinIds?: readonly string[]; tokenAddresses?: readonly string[] }, options: ResearchOptions = {}): Promise<ResearchReport> {
   if ((input.coinIds?.length ?? 0) + (input.tokenAddresses?.length ?? 0) === 0) throw new Error("at least one coin ID or token address is required");
+  if ((input.tokenAddresses?.length ?? 0) > 25) throw new Error("at most 25 token addresses may be researched per report");
+  const coinIds = [...new Set(input.coinIds ?? [])];
+  const tokenAddresses = [...new Set(input.tokenAddresses ?? [])];
   const [assets, pairGroups] = await Promise.all([
-    input.coinIds?.length ? getCoinMarkets(input.coinIds, options) : Promise.resolve([]),
-    Promise.all((input.tokenAddresses ?? []).map((address) => getDexPairs(address, options))),
+    coinIds.length ? getCoinMarkets(coinIds, options) : Promise.resolve([]),
+    Promise.all(tokenAddresses.map((address) => getDexPairs(address, options))),
   ]);
   return {
     generatedAt: (options.now ?? (() => new Date()))().toISOString(), assets, pairs: pairGroups.flat(),
@@ -122,4 +128,9 @@ function nullableNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("provider returned a non-finite numeric field");
   return value;
+}
+function nonNegativeNumber(value: unknown): number | null {
+  const number = nullableNumber(value);
+  if (number !== null && number < 0) throw new Error("provider returned a negative value for a non-negative market field");
+  return number;
 }
