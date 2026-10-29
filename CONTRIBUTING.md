@@ -5,11 +5,11 @@ AGENT HOOKS is open source under MIT. PRs are welcome.
 ## Local setup
 
 ```
-rustup install 1.79.0
-cargo --version              # 1.79.0
-node --version               # 20.x or later
+rustup install stable
+cargo --version              # stable
+node --version               # 22.x or later
 pnpm --version               # 9.x
-anchor --version             # 0.31.0
+anchor --version             # 0.31.1
 solana --version             # 1.18.x
 ```
 
