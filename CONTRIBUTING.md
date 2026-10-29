@@ -71,7 +71,11 @@ anchor test
 
 ## Commit messages
 
-Plain English. Short. Imperative or descriptive — both are fine. Don't prefix with `feat:` / `fix:` / `chore:`; the changelog is hand-maintained.
+Use a Conventional Commits prefix: `feat:`, `fix:`, `docs:`, `test:`, `chore:`,
+or `refactor:`. Add a scope when the change is confined to one package, for
+example `feat(brain): stream durable outcomes to live agents`. Keep the subject
+imperative and short; put the reason in the body. The changelog is
+hand-maintained, so commits do not generate entries.
 
 ## PR review
 
