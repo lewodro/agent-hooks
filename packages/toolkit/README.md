@@ -65,6 +65,29 @@ console.log(report.generatedAt, report.assets, report.pairs, report.caveats);
 
 This is a provider-integration foundation, not a complete institutional terminal: it does not yet provide historical candles, order books, news, fundamentals, portfolio accounting, cross-source reconciliation, or investment recommendations. Provider observations can be stale, incomplete, or manipulated; use independent sources and your own risk controls before an agent acts.
 
+### Fresh market alerts
+
+The toolkit bounds each research report to 25 unique token-address lookups, deduplicates repeated requests, labels DEX data with its local receipt time, and rejects negative price, liquidity, and volume fields. The `@agent-hooks/toolkit/market-alerts` evaluator compares a report to explicit rules using exact CoinGecko IDs or chain-qualified pair addresses, a maximum data age, and an optional minimum pair-liquidity floor:
+
+```ts
+import { researchAssets } from "@agent-hooks/toolkit/research";
+import { evaluateMarketAlerts } from "@agent-hooks/toolkit/market-alerts";
+
+const report = await researchAssets({ coinIds: ["solana"] });
+const alerts = evaluateMarketAlerts(report, [{
+  id: "solana-move-review",
+  assetKey: "coingecko:solana",
+  metric: "change24hPct",
+  operator: "gte",
+  threshold: 8,
+  severity: "warning",
+  maxAgeMs: 120_000,
+}]);
+// Queue matched, source-attributed alerts for agent review; they are not trade instructions.
+```
+
+Rules and units are shown in [`examples/crypto-market-alerts.json`](../../examples/crypto-market-alerts.json). `maxAgeMs` is checked against the local provider-response time. It does not prove upstream price freshness, chain truth, or adequate market depth. The evaluator only creates deterministic alert records; persistent delivery, cooldowns, agent wake-up, policy, simulation, approval, and signing remain host responsibilities.
+
 ## Solana hooks and agent frameworks
 
 `SolanaHookEngine` runs deterministic host-side hooks over normalized Solana lifecycle events. Hooks are ordered by priority; nonmatching hooks are skipped; a rejection ends evaluation; accepted effects are returned as proposals for the host. Malformed events, invalid effects, and hook exceptions fail closed. The engine does not send transactions, call RPC, or execute model code. This keeps model inference and network I/O away from action-critical evaluation.
