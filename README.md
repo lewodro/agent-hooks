@@ -195,11 +195,9 @@ packages/
   agent-runtime/     agent proposals and policy validation
   hook-runtime/      Rust event model and composition engine
   hook-library/      standard lending hooks
-  anchor-program/    on-chain executor and registry
+  anchor-program/    on-chain executor, registry, and programs/agent-hooks-policy
   sdk-ts/            TypeScript SDK and simulator
   toolkit/           standalone, packable TypeScript hooks + agent toolkit
-  anchor-program/
-    programs/agent-hooks-policy/ slippage/cooldown CPI gate example
   *-adapter/         protocol-specific event normalization
   cli/               command-line tooling
   vscode-extension/  editor designer and simulator

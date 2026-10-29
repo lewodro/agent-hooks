@@ -27,13 +27,20 @@ The repo is a Rust + TypeScript monorepo plus the Anchor program for the on-chai
 
 ```
 packages/
+  contracts/           TS package — protocol-independent lifecycle event contracts
+  adapter-core/        TS package — lending adapter interfaces and shared pool metrics
   hook-runtime/        Rust crate — lifecycle types, Composition, Simulator
   hook-library/        Rust crate — the six standard hooks
-  anchor-program/      Anchor 0.31 program (the on-chain executor)
+  anchor-program/      Anchor 0.31 programs — executor registry + policy CPI gate
   marginfi-adapter/    TS package — wraps @mrgnlabs/marginfi-client-v2
   kamino-adapter/      TS package — wraps @kamino-finance/klend-sdk
   solend-adapter/      TS package — wraps @solendprotocol/solend-sdk
   sdk-ts/              TS package — Composition builder + executor client + simulator
+  agent-runtime/       TS package — proposals, policy validation, operator approvals
+  agent-brain/         TS package — schema-validated experience memory
+  toolkit/             TS package — standalone hooks, research, publishers, treasury review
+  trigger-hooks/       TS package — Solana log ingress, trigger matching, agent wake adapters
+  trigger-service/     Rust crate — reviewed token-launch proposals
   cli/                 @agent-hooks/cli (npm)
   vscode-extension/    VS Code extension
 ```
