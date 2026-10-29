@@ -1,6 +1,6 @@
 # Contributing
 
-AGENT HOOKS is open source under Apache-2.0. PRs are welcome.
+AGENT HOOKS is open source under MIT. PRs are welcome.
 
 ## Local setup
 
