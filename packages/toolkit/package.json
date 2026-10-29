@@ -33,6 +33,10 @@
       "types": "./dist/market-research.d.ts",
       "import": "./dist/market-research.js"
     },
+    "./market-alerts": {
+      "types": "./dist/market-alerts.d.ts",
+      "import": "./dist/market-alerts.js"
+    },
     "./x-research": {
       "types": "./dist/x-research.d.ts",
       "import": "./dist/x-research.js"
@@ -53,6 +57,7 @@
     "dist/x.js", "dist/x.d.ts",
     "dist/treasury.js", "dist/treasury.d.ts",
     "dist/market-research.js", "dist/market-research.d.ts",
+    "dist/market-alerts.js", "dist/market-alerts.d.ts",
     "dist/x-research.js", "dist/x-research.d.ts",
     "dist/x-publisher.js", "dist/x-publisher.d.ts",
     "dist/moltbook.js", "dist/moltbook.d.ts",
