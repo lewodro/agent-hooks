@@ -1,4 +1,5 @@
 import type { WakeDispatcher, WakeRequest } from "./index.js";
+import { isLoopbackHost } from "./loopback.js";
 
 export interface OpenClawDispatcherOptions {
   gatewayUrl: string;
@@ -56,7 +57,7 @@ export function formatWakeText(request: WakeRequest): string {
 
 function webhookUrl(base: string, path: string): string {
   const url = new URL(base);
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname))) {
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopbackHost(url.hostname))) {
     throw new Error("agent webhook URL must use HTTPS unless it targets loopback");
   }
   url.pathname = `${url.pathname.replace(/\/$/, "")}${path}`;

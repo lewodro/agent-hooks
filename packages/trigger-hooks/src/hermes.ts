@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import type { WakeDispatcher, WakeRequest } from "./index.js";
+import { isLoopbackHost } from "./loopback.js";
 
 export interface HermesDispatcherOptions {
   gatewayUrl: string;
@@ -58,7 +59,7 @@ function hermesRouteUrl(options: HermesDispatcherOptions): string {
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(options.route)) throw new Error("Hermes route name is invalid");
   if (options.profile && !/^[A-Za-z0-9_-]{1,128}$/.test(options.profile)) throw new Error("Hermes profile name is invalid");
   const url = new URL(options.gatewayUrl);
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname))) {
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopbackHost(url.hostname))) {
     throw new Error("agent webhook URL must use HTTPS unless it targets loopback");
   }
   const prefix = options.profile ? `/p/${options.profile}` : "";

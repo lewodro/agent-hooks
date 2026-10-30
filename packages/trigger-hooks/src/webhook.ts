@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import type { WakeDispatcher, WakeRequest } from "./index.js";
 import { toHermesPayload } from "./hermes.js";
+import { isLoopbackHost } from "./loopback.js";
 
 export interface WebhookDispatcherOptions {
   url: string;
@@ -41,7 +42,7 @@ export function createWebhookDispatcher(options: WebhookDispatcherOptions): Wake
 function safeWebhookUrl(value: string): string {
   const url = new URL(value);
   if (url.username || url.password) throw new Error("agent webhook credentials must use headers, not URL user info");
-  if (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "::1"].includes(url.hostname))) {
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopbackHost(url.hostname))) {
     throw new Error("agent webhook URL must use HTTPS unless it targets loopback");
   }
   return url.toString();
