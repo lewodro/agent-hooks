@@ -4,7 +4,11 @@
   "description": "Open-source TypeScript toolkit for Solana hooks, market and social research, agent publishing workflows, and treasury review.",
   "license": "MIT",
   "homepage": "https://agenthooks.io",
-  "repository": "https://github.com/lewodro/agent-hooks",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lewodro/agent-hooks.git",
+    "directory": "packages/toolkit"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
