@@ -15,6 +15,12 @@ export interface WebhookDispatcherOptions {
 /** Generic adapter for LangGraph, CrewAI, custom bots, and hosted agent workers. */
 export function createWebhookDispatcher(options: WebhookDispatcherOptions): WakeDispatcher {
   const url = safeWebhookUrl(options.url);
+  if (options.bearerToken !== undefined && !options.bearerToken.trim()) {
+    throw new Error("agent webhook bearer token cannot be empty");
+  }
+  if (options.hmacSecret !== undefined && !options.hmacSecret) {
+    throw new Error("agent webhook HMAC secret cannot be empty");
+  }
   const send = options.fetch ?? globalThis.fetch;
   return {
     async wake(request: WakeRequest): Promise<void> {
