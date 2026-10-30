@@ -152,6 +152,7 @@ await engine.ingest(verifiedObservation);
 - Delivery is at-least-once, not exactly-once. A failed dispatch releases its dedupe claim so the host can retry; the receiving worker must be idempotent.
 - `MemoryDedupeStore` is process-local and volatile. Production requires a durable atomic claim store, replay cursor, queue, retry/dead-letter policy, and monitoring. These are host responsibilities, not included components today.
 - HMAC authenticates payload integrity between parties that share the secret; it does not establish source-chain truth. Validate RPC/indexer results and decode protocol events before creating trusted observations.
+- Endpoint validation: dispatchers require HTTPS except for `localhost`, `127.0.0.1`, `::1` and `[::1]`. They send `redirect: "error"`, so a 3xx response fails the wake instead of being followed to another host, and an empty bearer token or HMAC secret is rejected when the dispatcher is created rather than silently sending an unsigned wake.
 - A wake asks an agent to inspect an event. Keep the agent's analysis tools separate from signing authority; proposal, simulation, policy, human approval, and transaction execution belong in separately controlled services.
 
 See the repository's [Trigger Hooks integration guide](../../docs/trigger-hooks.md), [architecture](../../docs/architecture.md), and [security assumptions](../../docs/security.md).
