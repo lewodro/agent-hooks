@@ -30,7 +30,7 @@ export function createWebhookDispatcher(options: WebhookDispatcherOptions): Wake
       if (options.hmacSecret) {
         headers["x-agent-hooks-signature"] = `sha256=${createHmac("sha256", options.hmacSecret).update(`${timestamp}.${body}`).digest("hex")}`;
       }
-      const response = await send(url, { method: "POST", headers, body });
+      const response = await send(url, { method: "POST", headers, body, redirect: "error" });
       if (!response.ok) {
         const detail = (await response.text()).slice(0, 500);
         throw new Error(`agent webhook failed (${response.status})${detail ? `: ${detail}` : ""}`);

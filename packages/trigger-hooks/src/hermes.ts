@@ -29,6 +29,7 @@ export function createHermesDispatcher(options: HermesDispatcherOptions): WakeDi
           "x-webhook-timestamp": timestamp,
           "x-webhook-signature-v2": signature,
         },
+        redirect: "error",
         body,
       });
       if (!response.ok) {

@@ -23,6 +23,7 @@ export function createOpenClawDispatcher(options: OpenClawDispatcherOptions): Wa
           authorization: `Bearer ${options.token}`,
           "content-type": "application/json",
         },
+        redirect: "error",
         body: JSON.stringify({
           text: formatWakeText(request),
           mode: options.mode ?? "now",
