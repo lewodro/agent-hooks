@@ -21,6 +21,19 @@ Agent Hooks is an open-source framework for event-driven agents. It separates **
 | LangGraph, CrewAI, or your own agent | Generic HTTPS JSON webhook with optional bearer and HMAC authentication; these are webhook-compatible paths, not framework-specific plugins | [Generic webhook](docs/trigger-hooks.md#generic-agent-webhook) |
 | Autonomous Agent Economy | Versioned Rust economy-event validator and signed notification webhook; an AAE-side outbox is still required | [AAE integration boundary](docs/integrations/aae.md) |
 
+## Start building
+
+This is a pnpm workspace for Node.js 22+ with Rust components. Install dependencies with `pnpm install`, then choose the smallest package for your agent:
+
+| If you want to… | Start with… |
+| --- | --- |
+| Connect Claude, a local model, or another provider to proposal review | [Model integration guide](docs/model-integration.md) and [`@agent-hooks/agent-runtime`](packages/agent-runtime/README.md) |
+| Wake OpenClaw, Hermes, or your own agent from a finance signal | [Trigger Hooks guide](docs/trigger-hooks.md) and [`examples/finance-alerts.json`](examples/finance-alerts.json) |
+| Research crypto assets and create review alerts | [`@agent-hooks/toolkit`](packages/toolkit/README.md#financial-market-research) |
+| Build or simulate deterministic protocol hooks | [Hooks specification](docs/hooks-spec.md), [Rust runtime](packages/hook-runtime/README.md), and [CLI](packages/cli/README.md) |
+
+Browse the [documentation index](docs/README.md) for the package map, trust boundaries, and current implementation status.
+
 Why this matters for agentic finance: markets and governance move while an agent is idle. Event-driven wake-ups can reduce polling and shorten the time between a watched on-chain signal and human review. They do **not** guarantee a profitable or timely response: RPC/indexer coverage, decoder correctness, finality, durable delivery, risk controls, and operator review still matter. By default, a trigger should request analysis or a proposal—not grant the receiving agent signing authority.
 
 Choose what should wake your agent with configurable category, network, asset, severity, and numeric-threshold rules in [`examples/finance-alerts.json`](examples/finance-alerts.json). The host supplies the verified/decoded signal; the same trigger rules can dispatch to OpenClaw, Hermes, or your own agent webhook. See [alert variables and setup](docs/trigger-hooks.md#configure-what-should-alert).
