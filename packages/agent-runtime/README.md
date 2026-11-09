@@ -4,6 +4,32 @@ Provider-neutral proposal and operator-approval primitives for Agent Hooks. This
 
 Use the runtime in the off-chain control path:
 
+## Connect a model provider
+
+Keep the provider call in your application and treat its response as untrusted text. `parseAgentProposalOutput()` checks the bounded JSON shape; `validateProposal()` then applies the configured action and approval policy. This keeps the package independent of hosted or local model SDKs.
+
+```ts
+import {
+  parseAgentProposalOutput,
+  validateProposal,
+  type AgentPolicy,
+} from "@agent-hooks/agent-runtime";
+
+declare const planner: { propose(input: { task: string; evidence: readonly string[] }): Promise<string> };
+declare const operatorQueue: { save(proposal: unknown): Promise<void> };
+declare const policy: AgentPolicy;
+
+const output = await planner.propose({ task: "Review the latest hook outcomes", evidence: evidenceLinks });
+const proposal = parseAgentProposalOutput(output);
+const check = validateProposal(proposal, policy);
+if (!check.valid) throw new Error(check.violations.join("; "));
+await operatorQueue.save(proposal);
+```
+
+The runtime does not call the provider or implement `operatorQueue`. Persist the proposal and its evidence, run any required deterministic simulation, then request an authenticated human decision before a separate application service performs a mutation. Parsing is not policy approval, and approval is not a wallet signature.
+
+## Proposal validation and approval
+
 ```ts
 import {
   createProposalApproval,
