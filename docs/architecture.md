@@ -40,15 +40,18 @@ flowchart LR
   end
   subgraph learning [Off-chain agent control plane]
     B[agent-brain store]
-    PL[Planner / policy]
+    CTX[Bounded context builder]
+    MODEL[Provider adapter · hosted or local]
+    PARSE[Bounded proposal parser]
+    POLICY[Deterministic proposal policy]
     REVIEW[Simulation + operator approval]
   end
   RPC & IDX --> VERIFY --> MATCH --> DEDUPE --> WAKE
-  WAKE -. agent inspects event .-> PL
+  WAKE -. agent inspects event .-> CTX
   M & K & S & HIST --> N --> V --> C --> T
   T -. accepted proposal .-> P --> STATE
   T -. consumer integration .-> B
-  T --> B --> PL --> REVIEW --> C
+  T --> B --> CTX --> MODEL --> PARSE --> POLICY --> REVIEW --> C
 ```
 
 ## Workspace layers
@@ -60,7 +63,7 @@ flowchart LR
 | `@agent-hooks/sdk` | TypeScript composition, simulator, and executor-client interfaces using the shared contracts. | Its local simulator is not a protocol enforcement point. |
 | `hook-runtime` | Rust event validation, ordered hook evaluation, bounded side-effect proposals, audit traces, and historical simulation. | It evaluates local Rust `Hook` implementations; side effects are proposals until a host applies them. |
 | `agent-brain` | Storage interface with bounded in-memory and PostgreSQL implementations for normalized lifecycle events and hook feedback; query or stream prior experience to a planner. | Depends only on shared contracts, not adapters or the orchestration SDK. PostgreSQL uses an injected host database client; provenance labels remain caller-reported and are not cryptographically verified. No automatic reward attribution, causal model, or model training. |
-| `agent-runtime` | Agent proposal, simulation, and approval boundaries. | Model outputs remain untrusted proposals and cannot sign or submit transactions. |
+| `agent-runtime` | Provider-neutral proposal contract, bounded runtime parser for model output, policy validation, and content-bound approval. | Parsing validates shape; policy validates allowed actions. Neither supplies a model provider, simulation engine, authenticated identity provider, wallet, or signer. |
 | `@agent-hooks/toolkit` | Standalone TypeScript hook engine, bounded memory, daily X workflow, and treasury review queue. | Local workflow primitives only; production hosts provide durable stores, identity authentication, chain adapters, and execution services. |
 | `@agent-hooks/trigger-hooks` | TypeScript Solana log/webhook ingress, deterministic trigger matching, and outbound OpenClaw, Hermes Generic V2, or generic HTTPS dispatchers. | Off-chain wake adapters only. Host owns protocol decoding/source verification, durable cursor/dedupe/queue, agent-host configuration, retries, and all signing/execution boundaries. |
 | Anchor executor | Pool/composition registration, eligibility receipts, and hook listing metadata. | `run_composition` does not CPI into registered hook programs, enforce their decisions, or mutate downstream protocol state. |
@@ -73,6 +76,12 @@ Trigger Hooks is an off-chain wake-up path, not an on-chain callback or a Solana
 The TypeScript package currently supplies outbound HTTP dispatch to OpenClaw's hook endpoint and Hermes Generic V2 webhook routes, plus a generic signed/bearer-authenticated HTTPS webhook. Alert rules can match built-in finance categories, host-defined network labels and metrics, asset symbols, severity, and existing lending lifecycle fields. These are predicates over data provided by the host; this repository does not include EVM/Bitcoin listeners, price feeds, whale detectors, or DAO decoders. The adapters hand the event to an operator-configured agent host. The package's default dedupe store is volatile and there is no bundled durable queue: production hosts must provide persistent atomic deduplication, replay, retry, idempotency, and observability. See the [Trigger Hooks guide](trigger-hooks.md) for setup and deployment boundaries.
 
 For financial agents, waking on a liquidation-risk threshold, large transfer, or governance event can replace continuous polling with event-driven review. The wake is only a signal: it does not attest to a protocol decoder, guarantee delivery or response time, authorize a trade, or provide a safe signing path. Keep analysis and proposal generation separated from policy checks, simulation, operator approval, and transaction execution.
+
+## Model-to-proposal path
+
+The application owns the model provider and context builder. It selects and bounds source-attributed evidence, sends it to a hosted or local model, and passes the response to `parseAgentProposalOutput()` before calling `validateProposal()`. The parser rejects malformed, oversized, unsupported, or unbounded output; the policy rejects disallowed actions and missing approval or simulation requirements. A simulation result and an authenticated operator decision must be recorded by the application before its separately controlled execution service considers a mutation. See the [model integration guide](model-integration.md) for the code path and the [proposal contract](../packages/agent-runtime/README.md).
+
+Treat retrieved memories, public social posts, token metadata, and RPC/indexer payloads as untrusted data in the model context. Their text cannot change policy. A caller-reported provenance label does not verify chain truth, and a parser or proposal approval does not grant signer authority.
 
 ## Deterministic evaluation path
 
