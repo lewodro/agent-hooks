@@ -43,6 +43,17 @@ Use upstream protocol documentation when implementing chain adapters; these link
 - [Bitcoin developer guide](https://developer.bitcoin.org/devguide/)
 - [Agent Hooks chain support and extension path](docs/chain-integrations.md)
 
+## Practical crypto-agent starting points
+
+| Agent task | Existing building block | Safe first milestone |
+| --- | --- | --- |
+| React to a Solana protocol or market signal | [Trigger Hooks](packages/trigger-hooks/README.md) | Wake an agent to summarize evidence and create a review item; no trade. |
+| Research an asset or watch thresholds | [Toolkit research and alerts](packages/toolkit/README.md#financial-market-research) | Produce source-linked snapshots and bounded alerts; no automatic execution. |
+| Prepare a protocol change | [Agent Runtime](packages/agent-runtime/README.md) + simulator | Parse, validate, simulate, and fingerprint a proposal before an authenticated review. |
+| Launch a fixed-supply SPL token | [Launch proposal flow](packages/trigger-hooks/README.md#agent-authored-token-launch-proposals) | Separate reviewer approval and connected-wallet signature; no pool or trade. |
+
+Begin read-only, then add durable delivery and review records before any wallet-facing workflow. Ethereum/EVM and Bitcoin references above are for future adapters; this repository does not ship their chain listeners or execution clients.
+
 Why this matters for agentic finance: markets and governance move while an agent is idle. Event-driven wake-ups can reduce polling and shorten the time between a watched on-chain signal and human review. They do **not** guarantee a profitable or timely response: RPC/indexer coverage, decoder correctness, finality, durable delivery, risk controls, and operator review still matter. By default, a trigger should request analysis or a proposal—not grant the receiving agent signing authority.
 
 Choose what should wake your agent with configurable category, network, asset, severity, and numeric-threshold rules in [`examples/finance-alerts.json`](examples/finance-alerts.json). The host supplies the verified/decoded signal; the same trigger rules can dispatch to OpenClaw, Hermes, or your own agent webhook. See [alert variables and setup](docs/trigger-hooks.md#configure-what-should-alert).
