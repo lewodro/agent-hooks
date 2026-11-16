@@ -74,7 +74,7 @@ Choose what should wake your agent with configurable category, network, asset, s
 
 The loop is continuous: observe an event, evaluate deterministic guards, record the later outcome, retrieve relevant experience, and propose the next version. Model output is never itself an execution guardrail.
 
-For on-chain-to-agent activation, [`@agent-hooks/trigger-hooks`](packages/trigger-hooks/README.md) provides Solana RPC log subscriptions, HMAC-signed webhook verification, deterministic predicates, and replay-safe in-memory deduplication. It wakes a host-owned worker; it does not decode every protocol, operate a durable queue, sign, or broadcast. See the [integration and deployment guide](docs/trigger-hooks.md) for current capabilities and limitations.
+For on-chain-to-agent activation, [`@agent-hooks/trigger-hooks`](packages/trigger-hooks/README.md) provides Solana RPC log subscriptions, HMAC-signed webhook verification, deterministic predicates, and in-memory or PostgreSQL-backed dedupe claims. It wakes a host-owned worker; protocol decoding, source cursors, durable queue/retry, signing, and broadcasting remain separate integration work. See the [integration and deployment guide](docs/trigger-hooks.md) for current capabilities and limitations.
 
 An agent can submit a fingerprinted Solana token-launch request through the Rust Trigger Service. After a separate reviewer approves it, the TypeScript launch helper can assemble a fixed-supply SPL mint transaction and pass it to a connected wallet for explicit human signature. This v1 does not create a liquidity pool, trade, or register metadata on-chain; no signing keys are exposed to the agent. See the [launch proposal and wallet guide](packages/trigger-hooks/README.md#agent-authored-token-launch-proposals).
 

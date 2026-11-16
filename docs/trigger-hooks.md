@@ -12,7 +12,7 @@ agent wake queue (at-least-once)
 planner → simulation → policy → operator approval → separate execution service
 ```
 
-The first package implementation supports Solana RPC log subscriptions and HMAC-signed webhook intake. It intentionally leaves protocol event decoding, durable cursors, queue delivery, and the agent runtime to the host application. This keeps the trust boundary explicit: a log subscription is not proof that a normalized lending event or an LTV value is correct.
+The first package implementation supports Solana RPC log subscriptions and HMAC-signed webhook intake. It intentionally leaves protocol event decoding, durable source cursors, queue delivery, and the agent runtime to the host application. `PostgresDedupeStore` provides persistent atomic trigger claims, but a claim table is not an observation log or delivery queue. A log subscription is not proof that a normalized lending event or LTV value is correct.
 
 ## Configure what should alert
 
@@ -91,6 +91,11 @@ The application's observer/decoder owns chain verification and provides a `Chain
 
 ```ts
 import { TriggerEngine } from "@agent-hooks/trigger-hooks";
+import { PostgresDedupeStore, type TriggerPostgreSqlExecutor } from "@agent-hooks/trigger-hooks";
+
+declare const applicationPool: TriggerPostgreSqlExecutor;
+const durableDedupeStore = new PostgresDedupeStore(applicationPool);
+await durableDedupeStore.initialize(); // Run from a controlled migration step.
 
 const engine = new TriggerEngine({
   triggers: [{
@@ -98,17 +103,17 @@ const engine = new TriggerEngine({
     predicate: { eventKinds: ["beforeLiquidate"], minLtvBps: 8_000 },
   }],
   dispatcher, // one of the dispatchers above
-  dedupe: durableDedupeStore, // implement DedupeStore with an atomic persistent claim
+  dedupe: durableDedupeStore,
 });
 
 await engine.ingest(verifiedObservation);
 ```
 
-`MemoryDedupeStore` is the default and is only suitable for a single process with ephemeral state (for example, a prototype). A production worker must inject persistent atomic deduplication and durable delivery/retry; those facilities are not included in this package yet. The `dispatcher` variable above is selected from the adapter-specific examples.
+`MemoryDedupeStore` is the default and is only suitable for a single process with ephemeral state (for example, a prototype). PostgreSQL claims prevent concurrent duplicate dispatch and recover abandoned claims after lease expiry, but wake delivery is still at-least-once. The receiver should persist the request before acknowledging it and deduplicate by `x-agent-hooks-delivery`; durable source cursors, queues, retries, and dead-letter handling remain host responsibilities. The `dispatcher` variable above is selected from the adapter-specific examples.
 
 ## Production checklist
 
-- Use a durable cursor and atomic dedupe key such as `trigger_id + transaction_signature + event_index`.
+- Use a durable source cursor and a chain-qualified atomic dedupe key such as `trigger_id + network + transaction_id + event_index`.
 - Reconcile RPC notifications with fetched, confirmed/finalized transactions and validate program IDs, account ownership, instruction discriminators, and event indexes.
 - Add protocol-specific decoders for Marginfi, Kamino, Solend, whale transfers, and DAO proposal accounts.
 - Put the wake request on a durable queue with retry, dead-letter handling, rate limits, and idempotent agent runs.
