@@ -2,6 +2,9 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { Connection, PublicKey, type Finality, type Logs } from "@solana/web3.js";
 import type { LifecycleEvent, LifecycleEventKind } from "@agent-hooks/contracts";
 
+export { PostgresDedupeStore } from "./postgres-dedupe.js";
+export type { PostgresDedupeStoreOptions, TriggerPostgreSqlExecutor } from "./postgres-dedupe.js";
+
 export { createOpenClawDispatcher, formatWakeText } from "./openclaw.js";
 export type { OpenClawDispatcherOptions } from "./openclaw.js";
 export { createHermesDispatcher, toHermesPayload } from "./hermes.js";
