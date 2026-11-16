@@ -14,6 +14,16 @@ Agent Hooks is a development prototype. The runtime and simulator contain determ
 - `@agent-hooks/toolkit/x` keeps one active daily draft per workflow instance and binds approval to an immutable in-memory draft. It marks ambiguous publisher errors as `publish-unknown` to block blind retries. This is not a distributed daily quota or durable posting ledger; a multi-worker host must coordinate uniqueness and reconcile publish outcomes against X.
 - `@agent-hooks/toolkit` is independently packable; package contents include only its public JavaScript entry points, declaration files, license, and usage guide. Local tests and source maps are excluded from the published package.
 
+## Cross-chain agent requirements
+
+- Keep chain, network, native block/slot, transaction, and source-account identities together; never treat an EVM height or Bitcoin height as a Solana slot.
+- Reconcile reorgs and confirmation policy in the chain adapter before an event can enter a rule marked as verified.
+- Preserve token decimals and integer base units across models, alerts, approvals, and wallets; reject ambiguous asset symbols and network aliases.
+- Use a separate policy and least-privilege signer per chain. A shared agent identity must not imply shared signing authority.
+- Simulate with the target chain's rules and state, then bind human approval to the exact network, destination, asset, amount, and proposal fingerprint.
+
+The current `ChainObservation` and native listener are Solana-specific; these are requirements for future integrations, not claims that Ethereum or Bitcoin execution is shipped. See the [chain integration map](chain-integrations.md).
+
 ## Current on-chain checks
 
 The Anchor prototype verifies the event kind range, composition-to-pool binding, adapter equality, payload size (256 bytes maximum), pool authority for composition updates, hook count (maximum eight), and distinct priorities. It counts entries whose lifecycle flag matches the event and emits receipts.
