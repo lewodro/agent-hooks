@@ -29,6 +29,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "node --test --import tsx src/**/*.test.ts",
+    "test:postgres": "tsc -p tsconfig.json && node --test dist/postgres-dedupe.integration.test.js",
     "prepack": "pnpm run test && pnpm run build",
     "pack:check": "npm pack --dry-run"
   },
@@ -41,6 +42,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   }
