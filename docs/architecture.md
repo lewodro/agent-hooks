@@ -75,6 +75,10 @@ Trigger Hooks is an off-chain wake-up path, not an on-chain callback or a Solana
 
 The TypeScript package currently supplies outbound HTTP dispatch to OpenClaw's hook endpoint and Hermes Generic V2 webhook routes, plus a generic signed/bearer-authenticated HTTPS webhook. Alert rules can match built-in finance categories, host-defined network labels and metrics, asset symbols, severity, and existing lending lifecycle fields. These are predicates over data provided by the host; this repository does not include EVM/Bitcoin listeners, price feeds, whale detectors, or DAO decoders. The adapters hand the event to an operator-configured agent host. The package's default dedupe store is volatile and there is no bundled durable queue: production hosts must provide persistent atomic deduplication, replay, retry, idempotency, and observability. See the [Trigger Hooks guide](trigger-hooks.md) for setup and deployment boundaries.
 
+## Extending beyond Solana
+
+`@agent-hooks/contracts` currently describes the Solana lending lifecycle, not a universal blockchain event schema. Do not place an EVM block number or Bitcoin height into its `slot` field. A chain-specific source should retain its native network, block, transaction, and finality identifiers, verify reorganizations and source accounts, then emit a versioned adapter event for the agent workflow. Keep EVM log decoding and UTXO/script interpretation in their own packages; do not hide incompatible semantics behind one generic field. See the [chain integration map](chain-integrations.md) for current support and the proposed host boundary.
+
 For financial agents, waking on a liquidation-risk threshold, large transfer, or governance event can replace continuous polling with event-driven review. The wake is only a signal: it does not attest to a protocol decoder, guarantee delivery or response time, authorize a trade, or provide a safe signing path. Keep analysis and proposal generation separated from policy checks, simulation, operator approval, and transaction execution.
 
 ## Model-to-proposal path
