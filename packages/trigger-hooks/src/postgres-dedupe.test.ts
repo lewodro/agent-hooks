@@ -29,6 +29,19 @@ class FakePostgres implements TriggerPostgreSqlExecutor {
       if (existing?.token === token && !existing.completedAt) existing.completedAt = completedAt;
       return { rows: [] };
     }
+    if (statement.includes("WITH old_claims AS")) {
+      const [before, limit] = parameters as [Date, number];
+      const expired = [...this.claims.entries()]
+        .filter(([, row]) => row.completedAt ? row.completedAt <= before : row.expiresAt <= before)
+        .sort((left, right) => {
+          const leftTime = (left[1].completedAt ?? left[1].expiresAt).getTime();
+          const rightTime = (right[1].completedAt ?? right[1].expiresAt).getTime();
+          return leftTime - rightTime;
+        })
+        .slice(0, limit);
+      for (const [key] of expired) this.claims.delete(key);
+      return { rows: expired.map(([claim_key]) => ({ claim_key })) };
+    }
     if (statement.includes("DELETE FROM agent_hook_trigger_claims")) {
       const [key, token] = parameters as [string, string];
       const existing = this.claims.get(key);
@@ -66,6 +79,25 @@ test("PostgreSQL claims validate key and lease bounds", async () => {
   const store = new PostgresDedupeStore(db);
   await assert.rejects(store.acquire(""), /1-1024 characters/);
   await assert.rejects(store.acquire("x".repeat(1_025)), /1-1024 characters/);
+});
+
+test("claim retention prunes bounded expired rows without touching active leases", async () => {
+  let clock = new Date("2026-11-16T12:00:00.000Z");
+  const db = new FakePostgres();
+  const store = new PostgresDedupeStore(db, { leaseMilliseconds: 1_000, now: () => clock });
+  await store.initialize();
+  const completedToken = await store.acquire("completed-old");
+  await store.complete("completed-old", completedToken!);
+  await store.acquire("abandoned-old");
+  clock = new Date(clock.getTime() + 2_000);
+  await store.acquire("active-new");
+
+  const cutoff = new Date("2026-11-16T12:00:02.500Z");
+  assert.equal(await store.pruneRetained(cutoff, 1), 1, "pruning is bounded by the requested batch size");
+  assert.equal(await store.pruneRetained(cutoff), 1);
+  assert.equal(await store.pruneRetained(cutoff), 0);
+  assert.equal(await store.acquire("active-new"), undefined, "active lease remains claimed");
+  assert.equal(await store.acquire("completed-old") !== undefined, true, "pruned history is eligible after the chosen retention horizon");
 });
 
 test("TriggerEngine completes durable claims after wake and releases failed attempts", async () => {

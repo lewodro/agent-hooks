@@ -95,6 +95,30 @@ export class PostgresDedupeStore implements DedupeStore {
     );
   }
 
+  /**
+   * Delete completed records and abandoned leases older than an explicit cutoff.
+   * Choose a retention horizon longer than the source's replay/backfill window.
+   */
+  async pruneRetained(before: Date, limit = 500): Promise<number> {
+    if (!Number.isFinite(before.getTime())) throw new TypeError("trigger claim retention cutoff must be a valid date");
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10_000) {
+      throw new RangeError("trigger claim prune limit must be between 1 and 10000");
+    }
+    const result = await this.db.query(
+      `WITH old_claims AS (
+        SELECT claim_key FROM agent_hook_trigger_claims
+        WHERE (completed_at IS NOT NULL AND completed_at <= $1)
+          OR (completed_at IS NULL AND lease_expires_at <= $1)
+        ORDER BY COALESCE(completed_at, lease_expires_at) ASC
+        LIMIT $2
+      ) DELETE FROM agent_hook_trigger_claims AS claims
+        USING old_claims WHERE claims.claim_key = old_claims.claim_key
+        RETURNING claims.claim_key`,
+      [before, limit],
+    );
+    return result.rows.length;
+  }
+
   /** Compatibility release; TriggerEngine uses token-fenced releaseClaim when available. */
   async release(key: string): Promise<void> {
     const tokens = this.legacyTokens.get(key);

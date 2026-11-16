@@ -45,6 +45,9 @@ test("PostgreSQL trigger claims are atomic, restart-safe, and recover expired le
     await storeA.releaseClaim("ethereum:mainnet:tx-expired:log-0", abandoned!);
     assert.equal(await storeB.acquire("ethereum:mainnet:tx-expired:log-0"), undefined, "stale owner cannot delete the recovery lease");
     await recoveringStore.complete("ethereum:mainnet:tx-expired:log-0", recovered!);
+
+    assert.equal(await recoveringStore.pruneRetained(new Date(later.getTime() + 10_000), 10), 2);
+    assert.ok(await storeB.acquire("solana:mainnet:tx-atomic:whale"), "records can be retried after the explicitly chosen retention cutoff");
   } finally {
     await poolA?.end();
     await poolB?.end();
