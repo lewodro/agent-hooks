@@ -147,6 +147,8 @@ await engine.ingest(verifiedObservation);
 
 `TriggerEngine` rejects observations unless `sourceVerified` is true, checks deterministic predicates, and uses the injected dedupe store before calling the dispatcher. The boolean is an assertion supplied by the host—not a cryptographic proof. `SolanaLogSource` filters logs for a subscribed program but does not decode Marginfi/Kamino/Solend events or independently verify account ownership, whale transfer meaning, or DAO proposal state.
 
+The native source uses Solana's [WebSocket log subscription](https://solana.com/docs/rpc/websocket/logssubscribe) and fetches the transaction context at the configured commitment. Production hosts should reconcile gaps after reconnects and keep a durable cursor. Ethereum log subscriptions and Bitcoin block/transaction observation are not implemented here; consult the [chain integration map](../../docs/chain-integrations.md) before adding a source.
+
 ## Delivery and trust boundaries
 
 - Delivery is at-least-once, not exactly-once. A failed dispatch releases its dedupe claim so the host can retry; the receiving worker must be idempotent.
