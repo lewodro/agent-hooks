@@ -34,6 +34,15 @@ This is a pnpm workspace for Node.js 22+ with Rust components. Install dependenc
 
 Browse the [documentation index](docs/README.md) for the package map, trust boundaries, and current implementation status.
 
+## Chain developer references
+
+Use upstream protocol documentation when implementing chain adapters; these links are references, not claims that Agent Hooks already supports each network natively.
+
+- [Solana core and RPC docs](https://solana.com/docs/core) · [Anchor framework](https://www.anchor-lang.com/docs)
+- [Ethereum developer docs](https://ethereum.org/developers/docs/) · [JSON-RPC API](https://ethereum.org/developers/docs/apis/json-rpc/)
+- [Bitcoin developer guide](https://developer.bitcoin.org/devguide/)
+- [Agent Hooks chain support and extension path](docs/chain-integrations.md)
+
 Why this matters for agentic finance: markets and governance move while an agent is idle. Event-driven wake-ups can reduce polling and shorten the time between a watched on-chain signal and human review. They do **not** guarantee a profitable or timely response: RPC/indexer coverage, decoder correctness, finality, durable delivery, risk controls, and operator review still matter. By default, a trigger should request analysis or a proposal—not grant the receiving agent signing authority.
 
 Choose what should wake your agent with configurable category, network, asset, severity, and numeric-threshold rules in [`examples/finance-alerts.json`](examples/finance-alerts.json). The host supplies the verified/decoded signal; the same trigger rules can dispatch to OpenClaw, Hermes, or your own agent webhook. See [alert variables and setup](docs/trigger-hooks.md#configure-what-should-alert).
