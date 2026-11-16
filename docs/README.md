@@ -11,6 +11,7 @@ Start with the page that matches what you want to build. The framework is modula
 | Research tokens and create market alerts | [Toolkit guide](../packages/toolkit/README.md#financial-market-research) | CoinGecko/DEX Screener snapshots → deterministic, freshness-bounded review alerts |
 | Store attributed events and outcomes | [Agent Brain](../packages/agent-brain/README.md) | Application-owned event collectors → memory store → agent retrieval |
 | Write a deterministic protocol hook | [Hooks specification](hooks-spec.md) | Lifecycle event → bounded Rust/TypeScript hook → host or protocol enforcement |
+| Add or evaluate a chain adapter | [Chain integrations](chain-integrations.md) | Current Solana surface → explicit EVM/Bitcoin gaps → verified host adapter path |
 | Build the AAE connection | [AAE integration boundary](integrations/aae.md) | AAE Rust event sink/outbox → signed Agent Hooks notification |
 | Understand package boundaries | [Architecture](architecture.md) | Runtime, adapters, model control plane, Anchor examples, and current limits |
 
