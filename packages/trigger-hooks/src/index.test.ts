@@ -115,6 +115,13 @@ describe("TriggerEngine", () => {
       },
     }), /must be finite/);
   });
+
+  it("rejects empty, oversized, or database-incompatible source IDs", async () => {
+    const engine = new TriggerEngine({ triggers: [], dispatcher: { wake: async () => undefined } });
+    await assert.rejects(engine.ingest({ ...observation, sourceId: " " }), /sourceId must contain/);
+    await assert.rejects(engine.ingest({ ...observation, sourceId: "x".repeat(257) }), /sourceId must contain/);
+    await assert.rejects(engine.ingest({ ...observation, sourceId: "bad\0source" }), /sourceId must contain/);
+  });
 });
 
 describe("signed webhooks", () => {

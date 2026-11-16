@@ -79,6 +79,7 @@ test("PostgreSQL claims validate key and lease bounds", async () => {
   const store = new PostgresDedupeStore(db);
   await assert.rejects(store.acquire(""), /1-1024 characters/);
   await assert.rejects(store.acquire("x".repeat(1_025)), /1-1024 characters/);
+  await assert.rejects(store.acquire("bad\0key"), /1-1024 characters/);
 });
 
 test("claim retention prunes bounded expired rows without touching active leases", async () => {

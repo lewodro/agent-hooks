@@ -185,6 +185,10 @@ function validateObservation(observation: ChainObservation): void {
   if (!observation.signature.trim() || observation.signature.length > 128) {
     throw new Error("observation signature must contain 1-128 characters");
   }
+  if (typeof observation.sourceId !== "string" || !observation.sourceId.trim() ||
+    observation.sourceId.length > 256 || observation.sourceId.includes("\0")) {
+    throw new Error("observation sourceId must contain 1-256 characters without NUL bytes");
+  }
   if (!observation.programId.trim() || observation.programId.length > 64) {
     throw new Error("observation programId must contain 1-64 characters");
   }

@@ -129,7 +129,7 @@ export class PostgresDedupeStore implements DedupeStore {
 }
 
 function validateClaimKey(key: string): void {
-  if (typeof key !== "string" || key.length < 1 || key.length > 1024) {
+  if (typeof key !== "string" || key.length < 1 || key.length > 1024 || key.includes("\0")) {
     throw new RangeError("trigger claim key must contain 1-1024 characters");
   }
 }
