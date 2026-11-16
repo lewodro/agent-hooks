@@ -24,7 +24,7 @@ flowchart LR
   subgraph triggers [Trigger Hooks · off-chain]
     VERIFY[Host verifies source + normalizes finance signal]
     MATCH[Category · network · asset · severity · metric rules]
-    DEDUPE[Host durable dedupe + queue]
+    DEDUPE[PostgreSQL claim + host queue]
     WAKE[OpenClaw · Hermes · generic HTTPS]
   end
   subgraph deterministic [Deterministic hook plane]
