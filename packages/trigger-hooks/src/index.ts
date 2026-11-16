@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { Connection, PublicKey, type Finality, type Logs } from "@solana/web3.js";
 import type { LifecycleEvent, LifecycleEventKind } from "@agent-hooks/contracts";
 
@@ -96,15 +96,32 @@ export interface WakeDispatcher {
 export interface DedupeStore {
   claim(key: string): Promise<boolean>;
   release(key: string): Promise<void>;
+  /** Optional lease API. Stores implementing it can recover abandoned claims safely. */
+  acquire?(key: string): Promise<string | undefined>;
+  complete?(key: string, token: string): Promise<void>;
+  releaseClaim?(key: string, token: string): Promise<void>;
 }
 
 export class MemoryDedupeStore implements DedupeStore {
-  private readonly keys = new Set<string>();
+  private readonly keys = new Map<string, string>();
 
   async claim(key: string): Promise<boolean> {
-    if (this.keys.has(key)) return false;
-    this.keys.add(key);
-    return true;
+    return (await this.acquire(key)) !== undefined;
+  }
+
+  async acquire(key: string): Promise<string | undefined> {
+    if (this.keys.has(key)) return undefined;
+    const token = randomUUID();
+    this.keys.set(key, token);
+    return token;
+  }
+
+  async complete(_key: string, _token: string): Promise<void> {
+    // The memory store already keeps successful claims in its key map.
+  }
+
+  async releaseClaim(key: string, token: string): Promise<void> {
+    if (this.keys.get(key) === token) this.keys.delete(key);
   }
 
   async release(key: string): Promise<void> {
@@ -137,14 +154,19 @@ export class TriggerEngine {
     for (const trigger of this.options.triggers) {
       if (trigger.enabled === false || !matches(trigger.predicate, observation)) continue;
       const dedupeKey = `${trigger.id}:${observation.signature}:${observation.sourceId}`;
-      if (!(await this.dedupe.claim(dedupeKey))) continue;
+      const hasLeaseApi = typeof this.dedupe.acquire === "function" &&
+        typeof this.dedupe.complete === "function" && typeof this.dedupe.releaseClaim === "function";
+      const leaseToken = hasLeaseApi ? await this.dedupe.acquire!(dedupeKey) : undefined;
+      if (hasLeaseApi ? leaseToken === undefined : !(await this.dedupe.claim(dedupeKey))) continue;
       const request = { trigger, observation, dedupeKey } satisfies WakeRequest;
       try {
         await this.options.dispatcher.wake(request);
       } catch (error) {
-        await this.dedupe.release(dedupeKey);
+        if (leaseToken !== undefined) await this.dedupe.releaseClaim!(dedupeKey, leaseToken);
+        else await this.dedupe.release(dedupeKey);
         throw error;
       }
+      if (leaseToken !== undefined) await this.dedupe.complete!(dedupeKey, leaseToken);
       requests.push(request);
     }
     return requests;
